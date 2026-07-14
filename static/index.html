@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PortMonitor - Task Manager</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="layout">
+        <aside class="sidebar glass">
+            <div class="logo">PortMon</div>
+            <nav>
+                <a href="#" class="active" onclick="switchTab('performance')">Performance</a>
+                <a href="#" onclick="switchTab('favorites')">Favorite Projects</a>
+            </nav>
+        </aside>
+
+        <main class="content" id="tab-performance">
+            <header class="topbar">
+                <h1>Performance Monitor</h1>
+            </header>
+
+            <!-- Charts Section -->
+            <div class="charts-grid">
+                <div class="card glass">
+                    <div class="card-header">
+                        <div>
+                            <h3>CPU</h3>
+                            <div class="subtitle" id="cpu-pct">0.00%</div>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="cpuChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="card glass">
+                    <div class="card-header">
+                        <div>
+                            <h3>Memory</h3>
+                            <div class="subtitle"><span id="mem-raw">0 / 0 MB</span> • <span id="mem-pct">0.00%</span></div>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="memChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Task Manager Table Section -->
+            <div class="card glass mt-4">
+                <div class="card-header" style="align-items: center; margin-bottom: 1.5rem;">
+                    <h3>Listening Ports (Processes)</h3>
+                    <input type="text" id="port-search" placeholder="Search port, name, or PID..." style="padding: 0.5rem 1rem; border-radius: 0.5rem; border: 1px solid var(--glass-border); background: rgba(0,0,0,0.2); color: var(--text); outline: none; min-width: 250px; font-size: 0.85rem;">
+                </div>
+                <div class="table-container">
+                    <table class="task-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>PID</th>
+                                <th>Port</th>
+                                <th>User</th>
+                                <th>File / Directory</th>
+                                <th>Usage</th>
+                                <th style="text-align: right;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="all-ports-list">
+                            <tr><td colspan="7" class="empty-state">Loading system ports...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Local Folder Hosting Section -->
+            <div class="card glass mt-4">
+                <div class="card-header">
+                    <h3>Local Web Server</h3>
+                </div>
+                <div class="split-layout">
+                    <form id="host-form" class="host-form">
+                        <div class="input-group">
+                            <label>Absolute Folder Path</label>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <input type="text" id="path" placeholder="e.g. /Users/ikajtk/Downloads" required style="flex: 1;">
+                                <button type="button" class="btn-secondary" onclick="browseFolder('path')">📁</button>
+                            </div>
+                        </div>
+                        <div class="input-group">
+                            <label>Port</label>
+                            <input type="number" id="port" placeholder="8080" required min="1024" max="65535">
+                        </div>
+                        <button type="submit" class="btn-primary">Launch Web Server</button>
+                    </form>
+                    
+                    <div class="hosted-list-container">
+                        <h4 style="margin-bottom: 1rem; color: var(--text-muted);">Currently Hosted</h4>
+                        <div id="services-list" class="hosted-list">
+                            <p class="empty-state">No folders hosted.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <main class="content" id="tab-favorites" style="display: none;">
+            <header class="topbar">
+                <h1>Favorite Projects</h1>
+            </header>
+
+            <div class="card glass">
+                <div class="card-header">
+                    <h3>Add New Project</h3>
+                </div>
+                <form id="fav-form" style="display: flex; gap: 1rem; align-items: flex-end;">
+                    <div class="input-group" style="flex: 1; margin-bottom: 0;">
+                        <label>Project Name</label>
+                        <input type="text" id="fav-name" placeholder="e.g. Frontend App" required>
+                    </div>
+                    <div class="input-group" style="flex: 2; margin-bottom: 0;">
+                        <label>Command</label>
+                        <input type="text" id="fav-cmd" placeholder="e.g. npm run dev" required>
+                    </div>
+                    <div class="input-group" style="flex: 2; margin-bottom: 0;">
+                        <label>Directory</label>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <input type="text" id="fav-dir" placeholder="e.g. /Users/ikajtk/app" required style="flex: 1;">
+                            <button type="button" class="btn-secondary" onclick="browseFolder('fav-dir')" style="padding: 0.75rem;">📁</button>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn-primary" style="width: auto; padding: 0.75rem 2rem;">Add</button>
+                </form>
+            </div>
+
+            <div class="card glass mt-4">
+                <div class="card-header">
+                    <h3>My Projects</h3>
+                </div>
+                <div class="table-container">
+                    <table class="task-table">
+                        <thead>
+                            <tr>
+                                <th>Project Name</th>
+                                <th>Command</th>
+                                <th>Directory</th>
+                                <th>Status</th>
+                                <th style="text-align: right;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="fav-list">
+                            <tr><td colspan="5" class="empty-state">No favorite projects yet.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Log Modal -->
+    <div id="log-modal" class="modal">
+        <div class="modal-content glass">
+            <div class="modal-header">
+                <h3 id="log-title">Project Logs</h3>
+                <button class="close-btn" onclick="closeLogs()">×</button>
+            </div>
+            <div class="log-viewer" id="log-viewer"></div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
