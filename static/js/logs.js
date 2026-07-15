@@ -43,6 +43,30 @@ window.viewLogs = async (id) => {
     
     fetchLogs();
     currentLogInterval = setInterval(fetchLogs, 1000);
+    
+    // Focus the input box automatically
+    setTimeout(() => document.getElementById('log-input').focus(), 100);
+};
+
+window.sendStdin = async (e) => {
+    e.preventDefault();
+    if (!currentLogId) return;
+    const inputEl = document.getElementById('log-input');
+    const input = inputEl.value;
+    if (!input) return;
+    
+    inputEl.value = '';
+    
+    // Optimistically show user input in logs
+    const viewer = document.getElementById('log-viewer');
+    viewer.innerHTML += `<br><span style="color: var(--primary); font-weight: bold;">&gt; ${input.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</span>`;
+    viewer.scrollTop = viewer.scrollHeight;
+
+    await fetch(`/api/favorites/${currentLogId}/input`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ input })
+    });
 };
 
 window.closeLogs = () => {

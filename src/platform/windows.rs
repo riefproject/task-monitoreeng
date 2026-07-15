@@ -54,4 +54,4 @@ pub fn build_command(command: &str) -> std::process::Command {
 
 pub fn pause_process(_pid: u32) {}
 pub fn resume_process(_pid: u32) {}
-pub fn kill_process(pid: u32) { let _ = std::process::Command::new("taskkill").arg("/F").arg("/PID").arg(pid.to_string()).output(); }
+pub fn kill_process(pid: u32) { let _ = std::process::Command::new("taskkill").arg("/PID").arg(pid.to_string()).output(); }

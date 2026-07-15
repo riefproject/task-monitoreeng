@@ -12,6 +12,11 @@ pub struct ActionRequest {
     pub command_override: Option<String>,
 }
 
+#[derive(Deserialize)]
+pub struct InputRequest {
+    pub input: String,
+}
+
 async fn save_favorites(state: &AppState) {
     let favs = state.favorites.lock().await;
     let list: Vec<FavoriteProject> = favs.values().cloned().collect();
@@ -72,13 +77,21 @@ pub async fn get_project_logs(Path(id): Path<String>, State(state): State<AppSta
 }
 
 pub async fn add_favorite(State(state): State<AppState>, Json(mut req): Json<FavoriteProject>) -> Result<impl IntoResponse, (StatusCode, String)> {
-    req.id = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis().to_string();
+    if req.id.is_empty() {
+        req.id = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis().to_string();
+    }
+    let cloned_req = req.clone();
     {
         state.favorites.lock().await.insert(req.id.clone(), req.clone());
-        state.project_status.lock().await.insert(req.id.clone(), ProjectState { config: req, status: "stopped".to_string(), pid: None, has_error: false });
+        let mut statuses = state.project_status.lock().await;
+        if let Some(existing) = statuses.get_mut(&req.id) {
+            existing.config = req.clone();
+        } else {
+            statuses.insert(req.id.clone(), ProjectState { config: req, status: "stopped".to_string(), pid: None, has_error: false, restart_count: 0 });
+        }
     }
     save_favorites(&state).await;
-    Ok(StatusCode::CREATED)
+    Ok((StatusCode::CREATED, Json(cloned_req)))
 }
 
 pub async fn remove_favorite(State(state): State<AppState>, Path(id): Path<String>) -> Result<impl IntoResponse, (StatusCode, String)> {
@@ -123,7 +136,7 @@ pub async fn project_action(State(state): State<AppState>, Path(id): Path<String
 
                     let mut tokio_cmd = tokio::process::Command::from(cmd);
                     let mut child = tokio_cmd
-                        .stdin(Stdio::null())
+                        .stdin(Stdio::piped())
                         .stdout(Stdio::piped())
                         .stderr(Stdio::piped())
                         .spawn()
@@ -132,6 +145,9 @@ pub async fn project_action(State(state): State<AppState>, Path(id): Path<String
                     proj.status = "running".to_string();
                     proj.pid = child.id();
                     proj.has_error = false;
+                    
+                    let stdin = child.stdin.take().unwrap();
+                    state.project_stdin.lock().await.insert(id.clone(), std::sync::Arc::new(tokio::sync::Mutex::new(stdin)));
                     
                     let stdout = child.stdout.take().unwrap();
                     let stderr = child.stderr.take().unwrap();
@@ -151,27 +167,72 @@ pub async fn project_action(State(state): State<AppState>, Path(id): Path<String
                             }
                         }
                     });
-                    let state_clone_for_err = state.clone();
                     tokio::spawn(async move {
                         let mut reader = BufReader::new(stderr).lines();
                         while let Ok(Some(line)) = reader.next_line().await {
                             if let Some(dq) = logs_state_err.lock().await.get_mut(&id_stderr) {
                                 if dq.len() > 500 { dq.pop_front(); } 
                                 let ts = Local::now().format("%H:%M:%S").to_string();
-                                dq.push_back(format!("[{}] [ERROR] {}", ts, line));
-                            }
-                            let mut status_map = state_clone_for_err.project_status.lock().await;
-                            if let Some(proj) = status_map.get_mut(&id_stderr) {
-                                proj.has_error = true;
+                                dq.push_back(format!("[{}] {}", ts, line));
                             }
                         }
                     });
-                    
+
                     let state_clone = state.clone();
+                    let id_for_wait = id.to_string();
                     tokio::spawn(async move {
-                        let _ = child.wait().await;
-                        if let Some(p) = state_clone.project_status.lock().await.get_mut(&id) {
-                            p.status = "stopped".to_string(); p.pid = None;
+                        let mut current_child = child;
+                        loop {
+                            let status = current_child.wait().await;
+                            let mut should_restart = false;
+                            let mut restart_cmd = String::new();
+                            let mut restart_cwd = String::new();
+                            
+                            if let Ok(exit_status) = status {
+                                if !exit_status.success() {
+                                    let mut status_map = state_clone.project_status.lock().await;
+                                    if let Some(p) = status_map.get_mut(&id_for_wait) {
+                                        if p.config.auto_restart && p.restart_count < 3 && p.status == "running" {
+                                            should_restart = true;
+                                            p.restart_count += 1;
+                                            p.has_error = true;
+                                            restart_cmd = p.config.command.clone();
+                                            restart_cwd = p.config.cwd.clone();
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            if should_restart {
+                                if let Some(dq) = state_clone.project_logs.lock().await.get_mut(&id_for_wait) {
+                                    let status_map = state_clone.project_status.lock().await;
+                                    let count = status_map.get(&id_for_wait).map(|p| p.restart_count).unwrap_or(1);
+                                    dq.push_back(format!("[{}] [WARNING] Process crashed! Auto-restarting in 1s (Attempt {}/3)...", Local::now().format("%H:%M:%S"), count));
+                                }
+                                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                                
+                                let mut cmd = platform::build_command(&restart_cmd);
+                                cmd.current_dir(&restart_cwd);
+                                if let Ok(mut new_child) = tokio::process::Command::from(cmd).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn() {
+                                    if let Some(p) = state_clone.project_status.lock().await.get_mut(&id_for_wait) {
+                                        p.pid = new_child.id();
+                                        p.status = "running".to_string();
+                                    }
+                                    let new_stdin = new_child.stdin.take().unwrap();
+                                    state_clone.project_stdin.lock().await.insert(id_for_wait.clone(), std::sync::Arc::new(tokio::sync::Mutex::new(new_stdin)));
+                                    
+                                    let stdout = new_child.stdout.take().unwrap();
+                                    let stderr = new_child.stderr.take().unwrap();
+                                    spawn_log_readers(&state_clone, &id_for_wait, stdout, stderr);
+                                    current_child = new_child;
+                                    continue;
+                                }
+                            }
+                            
+                            if let Some(p) = state_clone.project_status.lock().await.get_mut(&id_for_wait) {
+                                p.status = "stopped".to_string(); p.pid = None; p.restart_count = 0;
+                            }
+                            break;
                         }
                     });
                 }
@@ -185,4 +246,51 @@ pub async fn project_action(State(state): State<AppState>, Path(id): Path<String
     } else {
         Err((StatusCode::NOT_FOUND, "Project not found".to_string()))
     }
+}
+
+pub async fn project_input(State(state): State<AppState>, Path(id): Path<String>, Json(req): Json<InputRequest>) -> Result<impl IntoResponse, (StatusCode, String)> {
+    let map = state.project_stdin.lock().await;
+    if let Some(stdin_mutex) = map.get(&id) {
+        use tokio::io::AsyncWriteExt;
+        let mut stdin = stdin_mutex.lock().await;
+        if let Err(e) = stdin.write_all(format!("{}\n", req.input).as_bytes()).await {
+            return Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string()));
+        }
+        Ok(StatusCode::OK)
+    } else {
+        Err((StatusCode::NOT_FOUND, "Process not running or stdin unavailable".to_string()))
+    }
+}
+
+pub fn spawn_log_readers(state: &AppState, id: &str, stdout: tokio::process::ChildStdout, stderr: tokio::process::ChildStderr) {
+    let logs_state = state.project_logs.clone();
+    let logs_state_err = state.project_logs.clone();
+    let state_clone_for_err = state.clone();
+    
+    let id_stdout = id.to_string();
+    let id_stderr = id.to_string();
+    
+    tokio::spawn(async move {
+        use tokio::io::{AsyncBufReadExt, BufReader};
+        let mut reader = BufReader::new(stdout).lines();
+        while let Ok(Some(line)) = reader.next_line().await {
+            if let Some(dq) = logs_state.lock().await.get_mut(&id_stdout) {
+                if dq.len() > 500 { dq.pop_front(); } 
+                let ts = chrono::Local::now().format("%H:%M:%S").to_string();
+                dq.push_back(format!("[{}] {}", ts, line));
+            }
+        }
+    });
+
+    tokio::spawn(async move {
+        use tokio::io::{AsyncBufReadExt, BufReader};
+        let mut reader = BufReader::new(stderr).lines();
+        while let Ok(Some(line)) = reader.next_line().await {
+            if let Some(dq) = logs_state_err.lock().await.get_mut(&id_stderr) {
+                if dq.len() > 500 { dq.pop_front(); } 
+                let ts = chrono::Local::now().format("%H:%M:%S").to_string();
+                dq.push_back(format!("[{}] {}", ts, line));
+            }
+        }
+    });
 }

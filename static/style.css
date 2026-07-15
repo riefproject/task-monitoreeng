@@ -25,6 +25,10 @@ body {
     overflow: hidden;
 }
 
+#sidebar-overlay {
+    display: none;
+}
+
 .layout {
     display: flex;
     height: 100vh;
@@ -36,6 +40,46 @@ body {
     border-right: 1px solid var(--glass-border);
     display: flex;
     flex-direction: column;
+    transition: width 0.3s ease, transform 0.3s ease;
+    flex-shrink: 0;
+    z-index: 50;
+    position: relative;
+}
+
+.sidebar-dot-toggle {
+    position: absolute;
+    top: 2rem;
+    right: -12px;
+    width: 24px;
+    height: 24px;
+    background-color: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: 50%;
+    cursor: pointer;
+    z-index: 60;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.sidebar-dot-toggle .chevron-icon {
+    transition: transform 0.3s ease, opacity 0.3s ease;
+    transform: rotate(180deg);
+    opacity: 0.7;
+}
+
+.sidebar.collapsed .sidebar-dot-toggle .chevron-icon {
+    transform: rotate(0deg);
+}
+
+.sidebar-dot-toggle:hover .chevron-icon {
+    opacity: 1;
+}
+
+.sidebar-dot-toggle:hover {
+    border-color: var(--primary);
+    background-color: rgba(139, 92, 246, 0.1);
 }
 
 .logo {
@@ -44,6 +88,9 @@ body {
     font-weight: 600;
     letter-spacing: -0.5px;
     border-bottom: 1px solid var(--glass-border);
+    transition: padding 0.3s ease, font-size 0.3s ease;
+    white-space: nowrap;
+    overflow: hidden;
 }
 
 .sidebar nav {
@@ -53,12 +100,17 @@ body {
 }
 
 .sidebar nav a {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
     padding: 0.75rem 1.5rem;
     color: var(--text-muted);
     text-decoration: none;
     font-weight: 500;
     transition: all 0.2s;
     border-left: 3px solid transparent;
+    white-space: nowrap;
+    overflow: hidden;
 }
 
 .sidebar nav a:hover {
@@ -228,6 +280,16 @@ body {
     transition: 0.2s;
 }
 
+.icon-btn {
+    padding: 0.5rem;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
 .btn-primary {
     background: var(--primary);
     color: white;
@@ -268,6 +330,7 @@ body {
     display: flex;
     gap: 0.5rem;
     justify-content: flex-end;
+    align-items: center;
 }
 
 /* Modal */
@@ -281,6 +344,8 @@ body {
     align-items: center;
     justify-content: center;
 }
+
+
 
 .modal-content {
     width: 80%;
@@ -296,6 +361,7 @@ body {
     align-items: center;
     padding: 1rem 1.5rem;
     border-bottom: 1px solid var(--glass-border);
+    flex-shrink: 0;
 }
 
 .close-btn {
@@ -317,4 +383,107 @@ body {
     background: #0a0a0a;
     border-bottom-left-radius: 0.75rem;
     border-bottom-right-radius: 0.75rem;
+}
+
+/* Responsive Workspaces */
+.ws-service-row {
+    display: flex;
+    gap: 0.5rem;
+    align-items: flex-end;
+    padding: 1rem;
+    background: rgba(0,0,0,0.2);
+    border: 1px solid rgba(255,255,255,0.05);
+    border-radius: 8px;
+}
+
+@media (max-width: 768px) {
+    .modal-content {
+        width: 95% !important;
+    }
+
+    .ws-service-row {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .ws-service-row .input-group {
+        width: 100%;
+        margin-bottom: 0.5rem !important;
+    }
+    
+    .ws-service-row button {
+        width: 100%;
+        margin-top: 0.5rem;
+    }
+
+    .split-layout {
+        grid-template-columns: 1fr;
+    }
+    
+    #sidebar-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 40;
+        opacity: 0;
+        transition: opacity 0.3s ease;
+    }
+    
+    #sidebar-overlay.active {
+        display: block;
+        opacity: 1;
+    }
+    
+    .sidebar {
+        position: fixed;
+        height: 100vh;
+        transform: translateX(0);
+    }
+    
+    .sidebar.collapsed {
+        transform: translateX(-100%);
+    }
+    
+    .sidebar-dot-toggle {
+        right: -16px;
+        width: 32px;
+        height: 32px;
+    }
+    
+    .sidebar.collapsed .sidebar-dot-toggle {
+        /* On mobile when collapsed, make it pop out a bit more so it's easier to tap */
+        right: -24px;
+        border-radius: 0 8px 8px 0;
+        border-left: none;
+    }
+}
+
+/* Desktop Collapsed Sidebar */
+@media (min-width: 769px) {
+    .sidebar.collapsed {
+        width: 68px;
+    }
+    .sidebar.collapsed .logo {
+        padding: 1.5rem 0;
+        text-align: center;
+        font-size: 0;
+    }
+    .sidebar.collapsed .logo::before {
+        content: "PM";
+        font-size: 1.25rem;
+    }
+    .sidebar.collapsed nav a {
+        padding: 0.75rem 0;
+        justify-content: center;
+    }
+    .sidebar.collapsed nav a span {
+        display: none;
+    }
+    .sidebar.collapsed nav a img {
+        margin: 0;
+    }
 }

@@ -15,23 +15,35 @@ async fn main() {
     let mut sys = System::new_all();
     sys.refresh_all(); 
 
-    let system_ports = Arc::new(StdMutex::new(Vec::new()));
-    let favorites = Arc::new(TokioMutex::new(HashMap::new()));
-    let project_status = Arc::new(TokioMutex::new(HashMap::new()));
-
-    if let Ok(data) = fs::read_to_string("favorites.json") {
-        if let Ok(favs) = serde_json::from_str::<Vec<FavoriteProject>>(&data) {
-            let mut fav_map = favorites.lock().await;
-            let mut status_map = project_status.lock().await;
-            for fav in favs {
-                fav_map.insert(fav.id.clone(), fav.clone());
-                status_map.insert(fav.id.clone(), ProjectState {
-                    config: fav,
+    let mut system_ports = Arc::new(StdMutex::new(Vec::new()));
+    let mut favorites = Arc::new(TokioMutex::new(HashMap::new()));
+    let mut workspaces = Arc::new(TokioMutex::new(HashMap::new()));
+    let mut project_status = Arc::new(TokioMutex::new(HashMap::new()));
+    
+    if let Ok(json) = fs::read_to_string("favorites.json") {
+        if let Ok(list) = serde_json::from_str::<Vec<state::FavoriteProject>>(&json) {
+            let mut favs = HashMap::new();
+            let mut statuses = HashMap::new();
+            for f in list {
+                favs.insert(f.id.clone(), f.clone());
+                statuses.insert(f.id.clone(), state::ProjectState {
+                    config: f,
                     status: "stopped".to_string(),
                     pid: None,
                     has_error: false,
+                    restart_count: 0,
                 });
             }
+            favorites = Arc::new(TokioMutex::new(favs));
+            project_status = Arc::new(TokioMutex::new(statuses));
+        }
+    }
+
+    if let Ok(json) = fs::read_to_string("workspaces.json") {
+        if let Ok(list) = serde_json::from_str::<Vec<state::Workspace>>(&json) {
+            let mut ws = HashMap::new();
+            for w in list { ws.insert(w.id.clone(), w); }
+            workspaces = Arc::new(TokioMutex::new(ws));
         }
     }
     
@@ -40,8 +52,10 @@ async fn main() {
         sys: Arc::new(StdMutex::new(sys)),
         system_ports: system_ports.clone(),
         favorites,
+        workspaces,
         project_status,
         project_logs: Arc::new(TokioMutex::new(HashMap::new())),
+        project_stdin: Arc::new(TokioMutex::new(HashMap::new())),
     };
 
     let system_ports_clone = system_ports.clone();
@@ -83,6 +97,9 @@ async fn main() {
         .route("/api/favorites/{id}", delete(api::favorites::remove_favorite))
         .route("/api/favorites/{id}/action", post(api::favorites::project_action))
         .route("/api/favorites/{id}/logs", get(api::favorites::get_project_logs))
+        .route("/api/favorites/{id}/input", post(api::favorites::project_input))
+        .route("/api/workspaces", get(api::workspaces::get_workspaces).post(api::workspaces::add_workspace))
+        .route("/api/workspaces/{id}", delete(api::workspaces::remove_workspace))
         .fallback_service(ServeDir::new("static"))
         .layer(CorsLayer::permissive())
         .with_state(state);

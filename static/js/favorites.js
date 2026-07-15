@@ -1,3 +1,5 @@
+let knownErrors = new Set();
+
 window.fetchFavorites = async () => {
     const activeEl = document.activeElement;
     if (activeEl && activeEl.tagName === 'INPUT' && activeEl.id.startsWith('cmd-in-')) return;
@@ -7,6 +9,18 @@ window.fetchFavorites = async () => {
         const favs = await res.json();
         
         window.updateFavicon(favs.some(f => f.has_error));
+        
+        // Handle Notifications
+        const currentErrors = new Set(favs.filter(f => f.has_error).map(f => f.config.id));
+        for (const id of currentErrors) {
+            if (!knownErrors.has(id)) {
+                const proj = favs.find(f => f.config.id === id);
+                if ('Notification' in window && Notification.permission === 'granted') {
+                    new Notification(`⚠️ PortMon: Error Detected`, { body: `Project "${proj.config.name}" emitted an error! Check the logs.` });
+                }
+            }
+        }
+        knownErrors = currentErrors;
 
         const listEl = document.getElementById('fav-list');
         if (favs.length === 0) return listEl.innerHTML = '<tr><td colspan="5" class="empty-state">No favorite projects yet.</td></tr>';
@@ -16,32 +30,19 @@ window.fetchFavorites = async () => {
             let logBtn = '';
             
             if (f.status === 'stopped') {
-                actionButtons = `<button class="btn-primary" onclick="favAction('${f.config.id}', 'run', document.getElementById('cmd-in-${f.config.id}').value)" style="display: flex; align-items: center; gap: 4px;"><i data-feather="play" style="width: 14px; height: 14px;"></i> Run</button>`;
-                logBtn = `<button class="btn-secondary" onclick="viewLogs('${f.config.id}')" title="View Logs" style="display: flex; align-items: center; gap: 4px; position: relative;">
-                    <i data-feather="file-text" style="width: 14px; height: 14px;"></i> Logs
-                    ${f.has_error ? '<span style="position:absolute; top:-2px; right:-2px; width:8px; height:8px; background:var(--danger); border-radius:50%; box-shadow:0 0 4px var(--danger);"></span>' : ''}
-                </button>`;
+                actionButtons = `<button class="btn-primary icon-btn" title="Run" onclick="favAction('${f.config.id}', 'run', document.getElementById('cmd-in-${f.config.id}').value)"><img src="assets/svg/play.svg" style="width:14px;height:14px; filter:invert(1);"></button>`;
+                logBtn = `<button class="btn-secondary icon-btn" onclick="viewLogs('${f.config.id}')" title="View Logs" style="position: relative;"><img src="assets/svg/logs.svg" style="width:14px;height:14px; filter:invert(1);">${f.has_error ? '<span style="position:absolute; top:-2px; right:-2px; width:8px; height:8px; background:var(--danger); border-radius:50%; box-shadow:0 0 4px var(--danger);"></span>' : ''}</button>`;
             } else if (f.status === 'running_externally') {
-                actionButtons = `<button class="btn-danger" onclick="killSystemProcess('${f.ext_pid}')" title="Kill Orphaned Process" style="display: flex; align-items: center; gap: 4px;"><i data-feather="x-circle" style="width: 14px; height: 14px;"></i> Kill</button>`;
+                actionButtons = `<button class="btn-danger icon-btn" onclick="killSystemProcess('${f.ext_pid}')" title="Kill Orphaned Process"><img src="assets/svg/x.svg" style="width:14px;height:14px; filter:invert(1);"></button>`;
                 logBtn = '';
             } else if (f.status === 'running') {
-                actionButtons = `
-                    <button class="btn-warning" onclick="favAction('${f.config.id}', 'pause')">Pause</button>
-                    <button class="btn-danger" onclick="favAction('${f.config.id}', 'stop')">Stop</button>
-                `;
-                logBtn = `<button class="btn-secondary" onclick="viewLogs('${f.config.id}')" title="View Logs" style="display: flex; align-items: center; gap: 4px; position: relative;">
-                    <i data-feather="file-text" style="width: 14px; height: 14px;"></i> Logs
-                    ${f.has_error ? '<span style="position:absolute; top:-2px; right:-2px; width:8px; height:8px; background:var(--danger); border-radius:50%; box-shadow:0 0 4px var(--danger);"></span>' : ''}
-                </button>`;
+                actionButtons = `<button class="btn-warning icon-btn" title="Pause" onclick="favAction('${f.config.id}', 'pause')"><img src="assets/svg/pause.svg" style="width:14px;height:14px; filter:invert(1);"></button>
+                                 <button class="btn-danger icon-btn" title="Stop" onclick="favAction('${f.config.id}', 'stop')"><img src="assets/svg/x.svg" style="width:14px;height:14px; filter:invert(1);"></button>`;
+                logBtn = `<button class="btn-secondary icon-btn" onclick="viewLogs('${f.config.id}')" title="View Logs" style="position: relative;"><img src="assets/svg/logs.svg" style="width:14px;height:14px; filter:invert(1);">${f.has_error ? '<span style="position:absolute; top:-2px; right:-2px; width:8px; height:8px; background:var(--danger); border-radius:50%; box-shadow:0 0 4px var(--danger);"></span>' : ''}</button>`;
             } else if (f.status === 'paused') {
-                actionButtons = `
-                    <button class="btn-primary" onclick="favAction('${f.config.id}', 'resume')">Resume</button>
-                    <button class="btn-danger" onclick="favAction('${f.config.id}', 'stop')">Stop</button>
-                `;
-                logBtn = `<button class="btn-secondary" onclick="viewLogs('${f.config.id}')" title="View Logs" style="display: flex; align-items: center; gap: 4px; position: relative;">
-                    <i data-feather="file-text" style="width: 14px; height: 14px;"></i> Logs
-                    ${f.has_error ? '<span style="position:absolute; top:-2px; right:-2px; width:8px; height:8px; background:var(--danger); border-radius:50%; box-shadow:0 0 4px var(--danger);"></span>' : ''}
-                </button>`;
+                actionButtons = `<button class="btn-primary icon-btn" title="Resume" onclick="favAction('${f.config.id}', 'resume')"><img src="assets/svg/play.svg" style="width:14px;height:14px; filter:invert(1);"></button>
+                                 <button class="btn-danger icon-btn" title="Stop" onclick="favAction('${f.config.id}', 'stop')"><img src="assets/svg/x.svg" style="width:14px;height:14px; filter:invert(1);"></button>`;
+                logBtn = `<button class="btn-secondary icon-btn" onclick="viewLogs('${f.config.id}')" title="View Logs" style="position: relative;"><img src="assets/svg/logs.svg" style="width:14px;height:14px; filter:invert(1);">${f.has_error ? '<span style="position:absolute; top:-2px; right:-2px; width:8px; height:8px; background:var(--danger); border-radius:50%; box-shadow:0 0 4px var(--danger);"></span>' : ''}</button>`;
             }
 
             let statusBadge = f.status === 'running' ? '<span class="status-badge running">Running</span>' : 
@@ -59,12 +60,11 @@ window.fetchFavorites = async () => {
                     <div class="actions-group">
                         ${actionButtons}
                         ${logBtn}
-                        <button class="btn-secondary" onclick="delFav('${f.config.id}')" title="Remove" style="display: flex; align-items: center; justify-content: center; padding: 0.5rem;"><i data-feather="trash-2" style="width: 14px; height: 14px;"></i></button>
+                        <button class="btn-secondary icon-btn" onclick="delFav('${f.config.id}')" title="Remove"><img src="assets/svg/trash.svg" style="width:14px;height:14px; filter: invert(34%) sepia(93%) saturate(6295%) hue-rotate(346deg) brightness(101%) contrast(97%);"></button>
                     </div>
                 </td>
             </tr>`;
         }).join('');
-        if (window.feather) feather.replace();
     } catch (err) {}
 };
 
@@ -74,15 +74,17 @@ document.getElementById('fav-form').addEventListener('submit', async (e) => {
     const command = document.getElementById('fav-cmd').value;
     const cwd = document.getElementById('fav-dir').value;
     const port = document.getElementById('fav-port').value;
+    const auto_restart = document.getElementById('fav-autorestart').checked;
     await fetch('/api/favorites', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: '', name, command, cwd, port: port || null })
+        body: JSON.stringify({ id: '', name, command, cwd, port: port || null, auto_restart })
     });
     document.getElementById('fav-name').value = '';
     document.getElementById('fav-cmd').value = '';
     document.getElementById('fav-dir').value = '';
     document.getElementById('fav-port').value = '';
+    document.getElementById('fav-autorestart').checked = false;
     window.fetchFavorites();
 });
 
@@ -107,5 +109,46 @@ window.browseFolder = async (inputId) => {
     try {
         const res = await fetch('/api/dialog/folder');
         if (res.ok) document.getElementById(inputId).value = await res.text();
+    } catch (err) {}
+};
+
+window.runAllFavorites = async () => {
+    try {
+        const res = await fetch('/api/favorites');
+        const favs = await res.json();
+        const stopped = favs.filter(f => f.status === 'stopped');
+        
+        let skipped = [];
+        
+        for (const f of stopped) {
+            // Port collision prevention
+            if (f.config.port) {
+                const isTaken = window.allSystemPorts && window.allSystemPorts.some(p => p.port === f.config.port);
+                if (isTaken) {
+                    skipped.push(f.config.name);
+                    continue; 
+                }
+            }
+            
+            await fetch(`/api/favorites/${f.config.id}/action`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'run', command_override: null })
+            });
+            
+            // Wait 1.5s between starting services to avoid race conditions
+            await new Promise(r => setTimeout(r, 1500));
+            // Refresh ports so the next project knows what's taken
+            await window.fetchAllPorts();
+        }
+        
+        window.fetchFavorites();
+        
+        if (skipped.length > 0) {
+            if ('Notification' in window && Notification.permission === 'granted') {
+                new Notification(`⚠️ Batch Run Skipped Projects`, { body: `Skipped: ${skipped.join(', ')}\n(Port already in use or service active)` });
+            }
+            alert(`Batch Run skipped the following projects because their ports are already active:\n- ${skipped.join('\n- ')}`);
+        }
     } catch (err) {}
 };

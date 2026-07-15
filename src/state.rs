@@ -28,6 +28,15 @@ pub struct FavoriteProject {
     pub cwd: String,
     #[serde(default)]
     pub port: Option<String>,
+    #[serde(default)]
+    pub auto_restart: bool,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct Workspace {
+    pub id: String,
+    pub name: String,
+    pub project_ids: Vec<String>,
 }
 
 #[derive(Serialize, Clone)]
@@ -37,6 +46,8 @@ pub struct ProjectState {
     pub pid: Option<u32>,
     #[serde(default)]
     pub has_error: bool,
+    #[serde(default)]
+    pub restart_count: u32,
 }
 
 pub struct ServerInfo {
@@ -50,6 +61,8 @@ pub struct AppState {
     pub sys: Arc<StdMutex<System>>,
     pub system_ports: Arc<StdMutex<Vec<SystemPortInfo>>>,
     pub favorites: Arc<TokioMutex<HashMap<String, FavoriteProject>>>,
+    pub workspaces: Arc<TokioMutex<HashMap<String, Workspace>>>,
     pub project_status: Arc<TokioMutex<HashMap<String, ProjectState>>>,
     pub project_logs: Arc<TokioMutex<HashMap<String, VecDeque<String>>>>,
+    pub project_stdin: Arc<TokioMutex<HashMap<String, Arc<TokioMutex<tokio::process::ChildStdin>>>>>,
 }

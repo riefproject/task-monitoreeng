@@ -43,18 +43,72 @@ window.updateFavicon = (hasError) => {
 window.updateFavicon(false);
 
 // Tab switching
-window.switchTab = (tabId) => {
+window.switchTab = (e, tabId) => {
+    e.preventDefault();
     document.querySelectorAll('.content').forEach(el => el.style.display = 'none');
     document.getElementById(`tab-${tabId}`).style.display = 'flex';
     
     document.querySelectorAll('.sidebar nav a').forEach(el => el.classList.remove('active'));
-    event.target.classList.add('active');
+    e.currentTarget.classList.add('active');
+    
+    if (window.innerWidth <= 768) {
+        document.querySelector('.sidebar').classList.add('collapsed');
+        const overlay = document.getElementById('sidebar-overlay');
+        if (overlay) overlay.classList.remove('active');
+    }
+    
+    if (tabId === 'workspaces' && window.fetchWorkspaces) {
+        window.fetchWorkspaces();
+    }
 };
 
 // Clipboard copying
 window.copyToClipboard = (text) => {
     navigator.clipboard.writeText(text);
 };
+
+// Sidebar Toggle
+window.toggleSidebar = () => {
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.getElementById('sidebar-overlay');
+    sidebar.classList.toggle('collapsed');
+    
+    if (window.innerWidth <= 768) {
+        if (sidebar.classList.contains('collapsed')) {
+            overlay.classList.remove('active');
+        } else {
+            overlay.classList.add('active');
+        }
+    }
+};
+
+// Initialize Sidebar for mobile
+if (window.innerWidth <= 768) {
+    document.querySelector('.sidebar').classList.add('collapsed');
+    if (document.getElementById('sidebar-overlay')) {
+        document.getElementById('sidebar-overlay').classList.remove('active');
+    }
+}
+window.addEventListener('resize', () => {
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.getElementById('sidebar-overlay');
+    if (window.innerWidth <= 768) {
+        if (!sidebar.classList.contains('collapsed')) {
+            // If we resized to mobile and it wasn't collapsed, it should probably collapse or show overlay
+            sidebar.classList.add('collapsed');
+            if (overlay) overlay.classList.remove('active');
+        }
+    } else {
+        // Desktop
+        sidebar.classList.remove('collapsed');
+        if (overlay) overlay.classList.remove('active');
+    }
+});
+
+// Request Notification Permission
+if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+}
 
 // Table column resizers
 window.initResizers = () => {

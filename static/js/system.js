@@ -1,4 +1,4 @@
-let allSystemPorts = [];
+window.allSystemPorts = [];
 
 window.renderSystemPorts = () => {
     const listEl = document.getElementById('all-ports-list');
@@ -43,12 +43,11 @@ window.renderSystemPorts = () => {
         </td>
         <td>
             <div class="actions-group">
-                <button class="btn-secondary" title="Add to Favorites" onclick="promoteToFavorite('${p.command}', '${(p.exe_path||'').replace(/\\/g, '\\\\')}', '${(p.cwd||'').replace(/\\/g, '\\\\')}')"><i data-feather="star" style="width: 14px; height: 14px;"></i></button>
-                <button class="btn-danger" title="Force Kill Process" onclick="killSystemProcess('${p.pid}')"><i data-feather="x-circle" style="width: 14px; height: 14px;"></i></button>
+                <button class="btn-secondary icon-btn" title="Add to Favorites" onclick="promoteToFavorite('${p.command}', '${(p.exe_path||'').replace(/\\/g, '\\\\')}', '${(p.cwd||'').replace(/\\/g, '\\\\')}')"><img src="assets/svg/star.svg" style="width:14px;height:14px; filter:invert(1);"></button>
+                <button class="btn-danger icon-btn" title="Force Kill Process" onclick="killSystemProcess('${p.pid}')"><img src="assets/svg/x.svg" style="width:14px;height:14px; filter:invert(1);"></button>
             </div>
         </td>
     </tr>`).join('');
-    if (window.feather) feather.replace();
 };
 
 document.getElementById('port-search').addEventListener('input', window.renderSystemPorts);
@@ -56,7 +55,7 @@ document.getElementById('port-search').addEventListener('input', window.renderSy
 window.fetchAllPorts = async () => {
     try {
         const res = await fetch('/api/all-ports');
-        allSystemPorts = await res.json();
+        window.allSystemPorts = await res.json();
         window.renderSystemPorts();
     } catch (err) {}
 };
