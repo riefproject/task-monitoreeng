@@ -1,8 +1,54 @@
 let currentLogInterval = null;
 
+let currentFaviconHasError = null;
+function updateFavicon(hasError) {
+    if (currentFaviconHasError === hasError) return;
+    currentFaviconHasError = hasError;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 32;
+    canvas.height = 32;
+    const ctx = canvas.getContext('2d');
+
+    // Draw base icon (Dark rounded square)
+    ctx.fillStyle = '#1e1e1e';
+    ctx.beginPath();
+    ctx.roundRect(0, 0, 32, 32, 8);
+    ctx.fill();
+
+    // Draw 'PM' text
+    ctx.fillStyle = '#8b5cf6';
+    ctx.font = 'bold 16px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('PM', 16, 17);
+
+    if (hasError) {
+        // Draw red dot
+        ctx.fillStyle = '#ef4444';
+        ctx.beginPath();
+        ctx.arc(26, 6, 6, 0, 2 * Math.PI);
+        ctx.fill();
+        
+        ctx.strokeStyle = '#1e1e1e';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+    }
+
+    const dataUrl = canvas.toDataURL('image/png');
+    let link = document.querySelector("link[rel~='icon']");
+    if (!link) {
+        link = document.createElement('link');
+        link.rel = 'icon';
+        document.head.appendChild(link);
+    }
+    link.href = dataUrl;
+}
+updateFavicon(false);
+
 window.switchTab = (tabId) => {
     document.querySelectorAll('.content').forEach(el => el.style.display = 'none');
-    document.getElementById(`tab-${tabId}`).style.display = 'block';
+    document.getElementById(`tab-${tabId}`).style.display = 'flex';
     
     document.querySelectorAll('.sidebar nav a').forEach(el => el.classList.remove('active'));
     event.target.classList.add('active');
@@ -13,7 +59,17 @@ const commonChartOptions = {
     responsive: true,
     maintainAspectRatio: false,
     animation: false,
-    scales: { x: { display: false }, y: { min: 0, max: 100, display: false } },
+    scales: { 
+        x: { display: false }, 
+        y: { 
+            min: 0, 
+            max: 100, 
+            display: true, 
+            grid: { color: 'rgba(255,255,255,0.05)' }, 
+            border: { display: false },
+            ticks: { color: 'rgba(255,255,255,0.3)', stepSize: 25 }
+        } 
+    },
     plugins: { legend: { display: false }, tooltip: { enabled: false } },
     elements: { point: { radius: 0 }, line: { tension: 0.2, borderWidth: 2 } }
 };
@@ -121,9 +177,20 @@ const fetchAllPorts = async () => {
 
 
 const fetchFavorites = async () => {
+    // Prevent UI refresh if user is currently typing in the command override input
+    const activeEl = document.activeElement;
+    if (activeEl && activeEl.tagName === 'INPUT' && activeEl.id.startsWith('cmd-in-')) {
+        return;
+    }
+
     try {
         const res = await fetch('/api/favorites');
         const favs = await res.json();
+        
+        // Update Favicon dot
+        const anyError = favs.some(f => f.has_error);
+        updateFavicon(anyError);
+
         const listEl = document.getElementById('fav-list');
         if (favs.length === 0) return listEl.innerHTML = '<tr><td colspan="5" class="empty-state">No favorite projects yet.</td></tr>';
             listEl.innerHTML = favs.map(f => {
@@ -132,20 +199,32 @@ const fetchFavorites = async () => {
             
             if (f.status === 'stopped') {
                 actionButtons = `<button class="btn-primary" onclick="favAction('${f.config.id}', 'run', document.getElementById('cmd-in-${f.config.id}').value)" style="display: flex; align-items: center; gap: 4px;"><i data-feather="play" style="width: 14px; height: 14px;"></i> Run</button>`;
+                logBtn = `<button class="btn-secondary" onclick="viewLogs('${f.config.id}')" title="View Logs" style="display: flex; align-items: center; gap: 4px; position: relative;">
+                    <i data-feather="file-text" style="width: 14px; height: 14px;"></i> Logs
+                    ${f.has_error ? '<span style="position:absolute; top:-2px; right:-2px; width:8px; height:8px; background:var(--danger); border-radius:50%; box-shadow:0 0 4px var(--danger);"></span>' : ''}
+                </button>`;
             } else if (f.status === 'running_externally') {
                 actionButtons = `<button class="btn-danger" onclick="killSystemProcess('${f.ext_pid}')" title="Kill Orphaned Process" style="display: flex; align-items: center; gap: 4px;"><i data-feather="x-circle" style="width: 14px; height: 14px;"></i> Kill</button>`;
+                // No logs for external processes
+                logBtn = '';
             } else if (f.status === 'running') {
                 actionButtons = `
                     <button class="btn-warning" onclick="favAction('${f.config.id}', 'pause')">Pause</button>
                     <button class="btn-danger" onclick="favAction('${f.config.id}', 'stop')">Stop</button>
                 `;
-                logBtn = `<button class="btn-secondary" onclick="viewLogs('${f.config.id}', '${f.config.name}')">Logs</button>`;
+                logBtn = `<button class="btn-secondary" onclick="viewLogs('${f.config.id}')" title="View Logs" style="display: flex; align-items: center; gap: 4px; position: relative;">
+                    <i data-feather="file-text" style="width: 14px; height: 14px;"></i> Logs
+                    ${f.has_error ? '<span style="position:absolute; top:-2px; right:-2px; width:8px; height:8px; background:var(--danger); border-radius:50%; box-shadow:0 0 4px var(--danger);"></span>' : ''}
+                </button>`;
             } else if (f.status === 'paused') {
                 actionButtons = `
                     <button class="btn-primary" onclick="favAction('${f.config.id}', 'resume')">Resume</button>
                     <button class="btn-danger" onclick="favAction('${f.config.id}', 'stop')">Stop</button>
                 `;
-                logBtn = `<button class="btn-secondary" onclick="viewLogs('${f.config.id}', '${f.config.name}')">Logs</button>`;
+                logBtn = `<button class="btn-secondary" onclick="viewLogs('${f.config.id}')" title="View Logs" style="display: flex; align-items: center; gap: 4px; position: relative;">
+                    <i data-feather="file-text" style="width: 14px; height: 14px;"></i> Logs
+                    ${f.has_error ? '<span style="position:absolute; top:-2px; right:-2px; width:8px; height:8px; background:var(--danger); border-radius:50%; box-shadow:0 0 4px var(--danger);"></span>' : ''}
+                </button>`;
             }
 
             let statusBadge = f.status === 'running' ? '<span class="status-badge running">Running</span>' : 
@@ -155,7 +234,7 @@ const fetchFavorites = async () => {
 
             return `<tr>
                 <td><strong>${f.config.name}</strong></td>
-                <td><input type="text" id="cmd-in-${f.config.id}" value="${f.config.command.replace(/"/g, '&quot;')}" style="background:transparent; border:1px solid rgba(255,255,255,0.1); color:var(--text); font-family:'Fira Code', monospace; font-size:0.8rem; padding:0.25rem 0.5rem; width:100%; min-width:200px; border-radius:4px; outline:none;" onfocus="this.style.borderColor='var(--primary)'" onblur="this.style.borderColor='rgba(255,255,255,0.1)'"></td>
+                <td><input type="text" id="cmd-in-${f.config.id}" value="${f.config.command.replace(/"/g, '&quot;')}" style="background:transparent; border:1px solid rgba(255,255,255,0.1); color:var(--text); font-family:'Fira Code', monospace; font-size:0.8rem; padding:0.25rem 0.5rem; width:100%; min-width:200px; border-radius:4px; outline:none;" onfocus="this.style.borderColor='var(--primary)'" onblur="this.style.borderColor='rgba(255,255,255,0.1)'" onchange="favAction('${f.config.id}', 'update', this.value)"></td>
                 <td><span class="code-font" style="color:var(--primary); font-weight:bold;">${f.config.port || '-'}</span></td>
                 <td><span class="code-font" style="font-size:0.7rem;">${f.config.cwd}</span></td>
                 <td>${statusBadge}</td>
@@ -197,6 +276,9 @@ window.favAction = async (id, action, command_override = null) => {
         body: JSON.stringify({ action, command_override })
     });
     fetchFavorites();
+    if (action === 'run') {
+        setTimeout(fetchAllPorts, 800); // Give the process time to start and bind its port
+    }
 };
 
 window.delFav = async (id) => {
@@ -220,8 +302,15 @@ window.browseFolder = async (inputId) => {
     }
 };
 
-window.viewLogs = (id, name) => {
-    document.getElementById('log-title').innerText = `Logs: ${name}`;
+window.viewLogs = async (id) => {
+    currentLogId = id;
+    
+    // Immediately clear error dot in the UI locally to prevent flicker
+    const fav = await fetch('/api/favorites').then(res => res.json());
+    const project = fav.find(f => f.config.id === id);
+    if (project) document.getElementById('log-title').innerText = `Logs: ${project.config.name}`;
+    fetchFavorites(); // Refresh to remove the dot
+
     document.getElementById('log-modal').style.display = 'flex';
     document.getElementById('log-viewer').innerText = 'Fetching logs...';
     
@@ -229,7 +318,7 @@ window.viewLogs = (id, name) => {
     
     const fetchLogs = async () => {
         try {
-            const res = await fetch(`/api/favorites/${id}/logs`);
+            const res = await fetch(`/api/favorites/${currentLogId}/logs`);
             const logs = await res.json();
             const viewer = document.getElementById('log-viewer');
             const isScrolledToBottom = viewer.scrollHeight - viewer.clientHeight <= viewer.scrollTop + 10;

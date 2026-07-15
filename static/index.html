@@ -20,13 +20,13 @@
             </nav>
         </aside>
 
-        <main class="content" id="tab-performance">
-            <header class="topbar">
+        <main class="content" id="tab-performance" style="display: flex; flex-direction: column; height: 100%;">
+            <header class="topbar" style="flex-shrink: 0;">
                 <h1>Performance Monitor</h1>
             </header>
 
             <!-- Charts Section -->
-            <div class="charts-grid">
+            <div class="charts-grid" style="flex-shrink: 0;">
                 <div class="card glass">
                     <div class="card-header">
                         <div>
@@ -53,12 +53,12 @@
             </div>
 
             <!-- Task Manager Table Section -->
-            <div class="card glass mt-4">
-                <div class="card-header" style="align-items: center; margin-bottom: 1.5rem;">
+            <div class="card glass mt-4" style="flex: 1; min-height: 0; display: flex; flex-direction: column;">
+                <div class="card-header" style="align-items: center; margin-bottom: 1rem; flex-shrink: 0;">
                     <h3>Listening Ports (Processes)</h3>
                     <input type="text" id="port-search" placeholder="Search port, name, or PID..." style="padding: 0.5rem 1rem; border-radius: 0.5rem; border: 1px solid var(--glass-border); background: rgba(0,0,0,0.2); color: var(--text); outline: none; min-width: 250px; font-size: 0.85rem;">
                 </div>
-                <div class="table-container">
+                <div class="table-container" style="flex: 1; overflow-y: auto; margin: -1.5rem; margin-top: 0; padding: 0 1.5rem 1.5rem 1.5rem;">
                     <table class="task-table">
                         <thead>
                             <tr>
@@ -80,12 +80,12 @@
 
         </main>
 
-        <main class="content" id="tab-favorites" style="display: none;">
-            <header class="topbar">
+        <main class="content" id="tab-favorites" style="display: none; flex-direction: column; height: 100%;">
+            <header class="topbar" style="flex-shrink: 0;">
                 <h1>Favorite Projects</h1>
             </header>
 
-            <div class="card glass">
+            <div class="card glass" style="flex-shrink: 0;">
                 <div class="card-header">
                     <h3>Add New Project</h3>
                 </div>
@@ -113,11 +113,11 @@
                 </form>
             </div>
 
-            <div class="card glass mt-4">
-                <div class="card-header">
+            <div class="card glass mt-4" style="flex: 1; min-height: 0; display: flex; flex-direction: column;">
+                <div class="card-header" style="flex-shrink: 0; margin-bottom: 1rem;">
                     <h3>My Projects</h3>
                 </div>
-                <div class="table-container">
+                <div class="table-container" style="flex: 1; overflow-y: auto; margin: -1.5rem; margin-top: 0; padding: 0 1.5rem 1.5rem 1.5rem;">
                     <table class="task-table">
                         <thead>
                             <tr>

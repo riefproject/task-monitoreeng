@@ -29,6 +29,7 @@ async fn main() {
                     config: fav,
                     status: "stopped".to_string(),
                     pid: None,
+                    has_error: false,
                 });
             }
         }

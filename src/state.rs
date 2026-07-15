@@ -35,6 +35,8 @@ pub struct ProjectState {
     pub config: FavoriteProject,
     pub status: String,
     pub pid: Option<u32>,
+    #[serde(default)]
+    pub has_error: bool,
 }
 
 pub struct ServerInfo {

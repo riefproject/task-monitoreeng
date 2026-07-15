@@ -34,7 +34,7 @@ pub async fn scan_ports(_local_sys: &mut sysinfo::System) -> Vec<SystemPortInfo>
 
 pub fn build_command(command: &str) -> std::process::Command {
     let mut cmd = std::process::Command::new("bash");
-    cmd.arg("-i").arg("-c").arg(command);
+    cmd.arg("-l").arg("-c").arg(command);
     cmd
 }
 

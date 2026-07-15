@@ -58,16 +58,24 @@ pub async fn get_favorites(State(state): State<AppState>) -> Json<Vec<serde_json
     Json(result)
 }
 
-pub async fn get_project_logs(State(state): State<AppState>, Path(id): Path<String>) -> Json<Vec<String>> {
-    let logs_map = state.project_logs.lock().await;
-    Json(logs_map.get(&id).map_or(vec![], |dq| dq.iter().cloned().collect()))
+pub async fn get_project_logs(Path(id): Path<String>, State(state): State<AppState>) -> impl IntoResponse {
+    let logs = state.project_logs.lock().await;
+    if let Some(proj_logs) = logs.get(&id) {
+        let mut status_map = state.project_status.lock().await;
+        if let Some(proj) = status_map.get_mut(&id) {
+            proj.has_error = false;
+        }
+        Json(proj_logs.iter().cloned().collect::<Vec<String>>()).into_response()
+    } else {
+        StatusCode::NOT_FOUND.into_response()
+    }
 }
 
 pub async fn add_favorite(State(state): State<AppState>, Json(mut req): Json<FavoriteProject>) -> Result<impl IntoResponse, (StatusCode, String)> {
     req.id = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis().to_string();
     {
         state.favorites.lock().await.insert(req.id.clone(), req.clone());
-        state.project_status.lock().await.insert(req.id.clone(), ProjectState { config: req, status: "stopped".to_string(), pid: None });
+        state.project_status.lock().await.insert(req.id.clone(), ProjectState { config: req, status: "stopped".to_string(), pid: None, has_error: false });
     }
     save_favorites(&state).await;
     Ok(StatusCode::CREATED)
@@ -83,6 +91,15 @@ pub async fn project_action(State(state): State<AppState>, Path(id): Path<String
     let mut status_map = state.project_status.lock().await;
     if let Some(proj) = status_map.get_mut(&id) {
         match req.action.as_str() {
+            "update" => {
+                if let Some(over) = &req.command_override {
+                    proj.config.command = over.clone();
+                    if let Some(fav) = state.favorites.lock().await.get_mut(&id) {
+                        fav.command = over.clone();
+                    }
+                    save_favorites(&state).await;
+                }
+            }
             "run" => {
                 if proj.status == "stopped" {
                     let cmd_to_run = req.command_override.as_deref().unwrap_or(&proj.config.command);
@@ -98,19 +115,23 @@ pub async fn project_action(State(state): State<AppState>, Path(id): Path<String
                     // Save the override if provided, so the UI keeps it
                     if let Some(over) = &req.command_override {
                         proj.config.command = over.clone();
-                        if let Some(fav) = state.favorites.lock().await.iter_mut().find(|f| f.id == id) {
+                        if let Some(fav) = state.favorites.lock().await.get_mut(&id) {
                             fav.command = over.clone();
                         }
                         save_favorites(&state).await;
                     }
 
-                    let mut child = cmd.stdout(Stdio::piped())
+                    let mut tokio_cmd = tokio::process::Command::from(cmd);
+                    let mut child = tokio_cmd
+                        .stdin(Stdio::null())
+                        .stdout(Stdio::piped())
                         .stderr(Stdio::piped())
                         .spawn()
                         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
                         
                     proj.status = "running".to_string();
                     proj.pid = child.id();
+                    proj.has_error = false;
                     
                     let stdout = child.stdout.take().unwrap();
                     let stderr = child.stderr.take().unwrap();
@@ -130,6 +151,7 @@ pub async fn project_action(State(state): State<AppState>, Path(id): Path<String
                             }
                         }
                     });
+                    let state_clone_for_err = state.clone();
                     tokio::spawn(async move {
                         let mut reader = BufReader::new(stderr).lines();
                         while let Ok(Some(line)) = reader.next_line().await {
@@ -137,6 +159,10 @@ pub async fn project_action(State(state): State<AppState>, Path(id): Path<String
                                 if dq.len() > 500 { dq.pop_front(); } 
                                 let ts = Local::now().format("%H:%M:%S").to_string();
                                 dq.push_back(format!("[{}] [ERROR] {}", ts, line));
+                            }
+                            let mut status_map = state_clone_for_err.project_status.lock().await;
+                            if let Some(proj) = status_map.get_mut(&id_stderr) {
+                                proj.has_error = true;
                             }
                         }
                     });
