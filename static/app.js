@@ -68,13 +68,26 @@ const renderSystemPorts = () => {
     });
 
     if (filtered.length === 0) {
-        return listEl.innerHTML = '<tr><td colspan="6" class="empty-state">No open ports detected.</td></tr>';
+        return listEl.innerHTML = '<tr><td colspan="7" class="empty-state">No open ports detected.</td></tr>';
     }
 
-    listEl.innerHTML = filtered.map(p => `<tr>
+    const grouped = {};
+    filtered.forEach(p => {
+        if (!grouped[p.pid]) {
+            grouped[p.pid] = { ...p, ports: [p.port] };
+        } else {
+            if (!grouped[p.pid].ports.includes(p.port)) {
+                grouped[p.pid].ports.push(p.port);
+                // Sort ports numerically
+                grouped[p.pid].ports.sort((a, b) => parseInt(a) - parseInt(b));
+            }
+        }
+    });
+
+    listEl.innerHTML = Object.values(grouped).map(p => `<tr>
         <td><strong>${p.command}</strong></td>
         <td>${p.pid}</td>
-        <td><span class="copyable" onclick="copyToClipboard('${p.port}')" title="Click to copy">${p.port}</span></td>
+        <td><span class="copyable" onclick="copyToClipboard('${p.ports.join(', ')}')\" title=\"Click to copy\">${p.ports.join(', ')}</span></td>
         <td>${p.user}</td>
         <td>
             ${p.exe_path ? `<div class="code-font copyable" onclick="copyToClipboard('${p.exe_path.replace(/\\/g, '\\\\')}')" title="Copy Executable">Exe: ${p.exe_path}</div>` : ''}
@@ -87,11 +100,12 @@ const renderSystemPorts = () => {
         </td>
         <td>
             <div class="actions-group">
-                <button class="btn-secondary" title="Add to Favorites" onclick="promoteToFavorite('${p.command}', '${(p.exe_path||'').replace(/\\/g, '\\\\')}', '${(p.cwd||'').replace(/\\/g, '\\\\')}')">⭐</button>
-                <button class="btn-danger" title="Force Kill Process" onclick="killSystemProcess('${p.pid}')">🛑</button>
+                <button class="btn-secondary" title="Add to Favorites" onclick="promoteToFavorite('${p.command}', '${(p.exe_path||'').replace(/\\/g, '\\\\')}', '${(p.cwd||'').replace(/\\/g, '\\\\')}')"><i data-feather="star" style="width: 14px; height: 14px;"></i></button>
+                <button class="btn-danger" title="Force Kill Process" onclick="killSystemProcess('${p.pid}')"><i data-feather="x-circle" style="width: 14px; height: 14px;"></i></button>
             </div>
         </td>
     </tr>`).join('');
+    if (window.feather) feather.replace();
 };
 
 document.getElementById('port-search').addEventListener('input', renderSystemPorts);
@@ -104,18 +118,7 @@ const fetchAllPorts = async () => {
     } catch (err) {}
 };
 
-const fetchServices = async () => {
-    try {
-        const res = await fetch('/api/services');
-        const services = await res.json();
-        const listEl = document.getElementById('services-list');
-        if (services.length === 0) return listEl.innerHTML = '<p class="empty-state" style="color:var(--text-muted); font-size:0.875rem;">No folders hosted.</p>';
-        listEl.innerHTML = services.map(s => `<div class="hosted-item">
-            <div><div style="font-size:0.75rem; color:var(--text-muted);">Port ${s.port}</div><div class="code-font" style="margin-top:2px;">${s.path}</div></div>
-            <div><button class="btn-danger" onclick="stopService(${s.port})">Stop</button></div>
-        </div>`).join('');
-    } catch (err) {}
-};
+
 
 const fetchFavorites = async () => {
     try {
@@ -128,9 +131,9 @@ const fetchFavorites = async () => {
             let logBtn = '';
             
             if (f.status === 'stopped') {
-                actionButtons = `<button class="btn-primary" onclick="favAction('${f.config.id}', 'run')">Run</button>`;
+                actionButtons = `<button class="btn-primary" onclick="favAction('${f.config.id}', 'run', document.getElementById('cmd-in-${f.config.id}').value)" style="display: flex; align-items: center; gap: 4px;"><i data-feather="play" style="width: 14px; height: 14px;"></i> Run</button>`;
             } else if (f.status === 'running_externally') {
-                actionButtons = `<button class="btn-primary" disabled title="Running outside Port Monitor" style="opacity: 0.5; cursor: not-allowed;">External</button>`;
+                actionButtons = `<button class="btn-danger" onclick="killSystemProcess('${f.ext_pid}')" title="Kill Orphaned Process" style="display: flex; align-items: center; gap: 4px;"><i data-feather="x-circle" style="width: 14px; height: 14px;"></i> Kill</button>`;
             } else if (f.status === 'running') {
                 actionButtons = `
                     <button class="btn-warning" onclick="favAction('${f.config.id}', 'pause')">Pause</button>
@@ -152,18 +155,20 @@ const fetchFavorites = async () => {
 
             return `<tr>
                 <td><strong>${f.config.name}</strong></td>
-                <td><span class="code-font">${f.config.command}</span></td>
+                <td><input type="text" id="cmd-in-${f.config.id}" value="${f.config.command.replace(/"/g, '&quot;')}" style="background:transparent; border:1px solid rgba(255,255,255,0.1); color:var(--text); font-family:'Fira Code', monospace; font-size:0.8rem; padding:0.25rem 0.5rem; width:100%; min-width:200px; border-radius:4px; outline:none;" onfocus="this.style.borderColor='var(--primary)'" onblur="this.style.borderColor='rgba(255,255,255,0.1)'"></td>
+                <td><span class="code-font" style="color:var(--primary); font-weight:bold;">${f.config.port || '-'}</span></td>
                 <td><span class="code-font" style="font-size:0.7rem;">${f.config.cwd}</span></td>
                 <td>${statusBadge}</td>
                 <td>
                     <div class="actions-group">
                         ${actionButtons}
                         ${logBtn}
-                        <button class="btn-secondary" onclick="removeFav('${f.config.id}')" title="Remove">🗑️</button>
+                        <button class="btn-secondary" onclick="removeFav('${f.config.id}')" title="Remove" style="display: flex; align-items: center; justify-content: center; padding: 0.5rem;"><i data-feather="trash-2" style="width: 14px; height: 14px;"></i></button>
                     </div>
                 </td>
             </tr>`;
         }).join('');
+        if (window.feather) feather.replace();
     } catch (err) {}
 };
 
@@ -172,22 +177,24 @@ document.getElementById('fav-form').addEventListener('submit', async (e) => {
     const name = document.getElementById('fav-name').value;
     const command = document.getElementById('fav-cmd').value;
     const cwd = document.getElementById('fav-dir').value;
+    const port = document.getElementById('fav-port').value;
     await fetch('/api/favorites', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: '', name, command, cwd })
+        body: JSON.stringify({ id: '', name, command, cwd, port: port || null })
     });
     document.getElementById('fav-name').value = '';
     document.getElementById('fav-cmd').value = '';
     document.getElementById('fav-dir').value = '';
+    document.getElementById('fav-port').value = '';
     fetchFavorites();
 });
 
-window.favAction = async (id, action) => {
+window.favAction = async (id, action, command_override = null) => {
     await fetch(`/api/favorites/${id}/action`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action })
+        body: JSON.stringify({ action, command_override })
     });
     fetchFavorites();
 };
@@ -199,22 +206,7 @@ window.delFav = async (id) => {
     }
 }
 
-document.getElementById('host-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    await fetch('/api/host', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path: document.getElementById('path').value, port: parseInt(document.getElementById('port').value) })
-    });
-    document.getElementById('path').value = '';
-    document.getElementById('port').value = '';
-    fetchServices();
-});
 
-window.stopService = async (port) => {
-    await fetch(`/api/host/${port}`, { method: 'DELETE' });
-    fetchServices();
-};
 
 window.browseFolder = async (inputId) => {
     try {
@@ -242,7 +234,29 @@ window.viewLogs = (id, name) => {
             const viewer = document.getElementById('log-viewer');
             const isScrolledToBottom = viewer.scrollHeight - viewer.clientHeight <= viewer.scrollTop + 10;
             
-            viewer.innerText = logs.length > 0 ? logs.join('\\n') : 'No logs available yet...';
+            if (logs.length > 0) {
+                const formattedLogs = logs.map(line => {
+                    let html = line.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+                    
+                    // Highlight Timestamp
+                    html = html.replace(/^\[(\d{2}:\d{2}:\d{2})\]/, '<span style="color: #6366f1; font-weight: bold;">[$1]</span>');
+                    
+                    // Highlight ERROR/WARN/INFO/SUCCESS
+                    html = html.replace(/(\[ERROR\]|ERROR:|ERR!|Error:)/g, '<span style="color: #ef4444; font-weight: bold;">$1</span>');
+                    html = html.replace(/(\[WARNING\]|WARNING:|WARN|Warning:)/g, '<span style="color: #f59e0b; font-weight: bold;">$1</span>');
+                    html = html.replace(/(\[INFO\]|INFO:)/gi, '<span style="color: #3b82f6; font-weight: bold;">$1</span>');
+                    html = html.replace(/(Ready to accept connections|Server initialized|Running mode=standalone|starting|success)/gi, '<span style="color: #10b981; font-weight: bold;">$1</span>');
+                    
+                    // Highlight common IDs/Ports
+                    html = html.replace(/(port=\d+)/g, '<span style="color: #8b5cf6; font-weight: 500;">$1</span>');
+                    html = html.replace(/(pid=\d+)/g, '<span style="color: #06b6d4; font-weight: 500;">$1</span>');
+
+                    return html;
+                });
+                viewer.innerHTML = formattedLogs.join('<br>');
+            } else {
+                viewer.innerHTML = '<span style="color: var(--text-muted);">No logs available yet...</span>';
+            }
             
             if (isScrolledToBottom) {
                 viewer.scrollTop = viewer.scrollHeight;
@@ -278,11 +292,46 @@ window.promoteToFavorite = (command, exe_path, cwd) => {
 };
 
 fetchSystemStats();
-fetchServices();
 fetchAllPorts();
 fetchFavorites();
 
+// Table Resizer Logic
+const initResizers = () => {
+    document.querySelectorAll('.task-table th').forEach(th => {
+        if (th.querySelector('.resizer')) return;
+        const resizer = document.createElement('div');
+        resizer.classList.add('resizer');
+        resizer.style.height = '100%';
+        th.appendChild(resizer);
+        
+        let x = 0;
+        let w = 0;
+        
+        const mouseDownHandler = (e) => {
+            x = e.clientX;
+            w = parseInt(window.getComputedStyle(th).width, 10);
+            document.addEventListener('mousemove', mouseMoveHandler);
+            document.addEventListener('mouseup', mouseUpHandler);
+            resizer.classList.add('resizing');
+        };
+        
+        const mouseMoveHandler = (e) => {
+            const dx = e.clientX - x;
+            th.style.width = `${w + dx}px`;
+            th.style.minWidth = `${w + dx}px`;
+        };
+        
+        const mouseUpHandler = () => {
+            resizer.classList.remove('resizing');
+            document.removeEventListener('mousemove', mouseMoveHandler);
+            document.removeEventListener('mouseup', mouseUpHandler);
+        };
+        
+        resizer.addEventListener('mousedown', mouseDownHandler);
+    });
+};
+setTimeout(initResizers, 500);
+
 setInterval(fetchSystemStats, 1000);
-setInterval(fetchServices, 2000);
 setInterval(fetchAllPorts, 3000);
 setInterval(fetchFavorites, 2000);

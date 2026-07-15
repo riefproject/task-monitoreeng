@@ -1,7 +1,7 @@
 use axum::{extract::{State, Path}, http::StatusCode, response::IntoResponse, Json};
 use serde::Serialize;
 use crate::state::AppState;
-use sysinfo::System;
+
 
 #[derive(Serialize)]
 pub struct SystemStats {

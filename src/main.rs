@@ -47,6 +47,7 @@ async fn main() {
     tokio::spawn(async move {
         let mut local_sys = sysinfo::System::new_all();
         loop {
+            local_sys.refresh_cpu_usage();
             local_sys.refresh_processes_specifics(
                 sysinfo::ProcessesToUpdate::All,
                 true,

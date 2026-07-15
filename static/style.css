@@ -147,6 +147,21 @@ body {
     color: var(--text-muted);
     font-weight: 500;
     border-bottom: 1px solid var(--glass-border);
+    position: relative;
+}
+
+.resizer {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 5px;
+    cursor: col-resize;
+    user-select: none;
+    z-index: 1;
+    transition: background-color 0.2s;
+}
+.resizer:hover, .resizer.resizing {
+    background-color: var(--primary);
 }
 
 .task-table td {

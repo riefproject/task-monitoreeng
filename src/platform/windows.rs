@@ -46,8 +46,10 @@ pub async fn scan_ports(_local_sys: &mut sysinfo::System) -> Vec<SystemPortInfo>
     list
 }
 
-pub fn build_command(cmd: &str) -> Command {
-    let mut c = Command::new("cmd"); c.arg("/C").arg(cmd); c
+pub fn build_command(command: &str) -> std::process::Command {
+    let mut cmd = std::process::Command::new("cmd.exe");
+    cmd.arg("/C").arg(command);
+    cmd
 }
 
 pub fn pause_process(_pid: u32) {}

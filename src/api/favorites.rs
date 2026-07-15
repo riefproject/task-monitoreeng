@@ -3,10 +3,14 @@ use serde::Deserialize;
 use std::{collections::VecDeque, fs};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use std::process::Stdio;
+use chrono::Local;
 use crate::{state::{AppState, FavoriteProject, ProjectState}, platform};
 
 #[derive(Deserialize)]
-pub struct ActionRequest { pub action: String }
+pub struct ActionRequest {
+    pub action: String,
+    pub command_override: Option<String>,
+}
 
 async fn save_favorites(state: &AppState) {
     let favs = state.favorites.lock().await;
@@ -24,21 +28,29 @@ pub async fn get_favorites(State(state): State<AppState>) -> Json<Vec<serde_json
         
         if proj.status == "stopped" {
             let mut is_running_externally = false;
+            let mut ext_pid = None;
             for sys_port in system_ports.iter() {
+                let mut matched = false;
                 if let Some(exe) = &sys_port.exe_path {
                     if proj.config.command.contains(exe) || exe.contains(&proj.config.command) {
-                        is_running_externally = true;
-                        break;
+                        matched = true;
                     }
                 }
                 // avoid false positives on short commands like "java" or "node" matching randomly
-                if sys_port.command.len() > 3 && proj.config.command.contains(&sys_port.command) && proj.config.command.starts_with(&sys_port.command) {
+                if !matched && sys_port.command.len() > 3 && proj.config.command.contains(&sys_port.command) && proj.config.command.starts_with(&sys_port.command) {
+                    matched = true;
+                }
+                if matched {
                     is_running_externally = true;
+                    ext_pid = Some(sys_port.pid.clone());
                     break;
                 }
             }
             if is_running_externally {
                 p["status"] = serde_json::json!("running_externally");
+                if let Some(pid) = ext_pid {
+                    p["ext_pid"] = serde_json::json!(pid);
+                }
             }
         }
         result.push(p);
@@ -73,9 +85,26 @@ pub async fn project_action(State(state): State<AppState>, Path(id): Path<String
         match req.action.as_str() {
             "run" => {
                 if proj.status == "stopped" {
-                    let mut child = platform::build_command(&proj.config.command)
-                        .current_dir(&proj.config.cwd)
-                        .stdout(Stdio::piped())
+                    let cmd_to_run = req.command_override.as_deref().unwrap_or(&proj.config.command);
+                    let mut cmd = platform::build_command(cmd_to_run);
+                    cmd.current_dir(&proj.config.cwd);
+                    
+                    if let Some(port_override) = &proj.config.port {
+                        if !port_override.is_empty() {
+                            cmd.env("PORT", port_override);
+                        }
+                    }
+
+                    // Save the override if provided, so the UI keeps it
+                    if let Some(over) = &req.command_override {
+                        proj.config.command = over.clone();
+                        if let Some(fav) = state.favorites.lock().await.iter_mut().find(|f| f.id == id) {
+                            fav.command = over.clone();
+                        }
+                        save_favorites(&state).await;
+                    }
+
+                    let mut child = cmd.stdout(Stdio::piped())
                         .stderr(Stdio::piped())
                         .spawn()
                         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
@@ -95,7 +124,9 @@ pub async fn project_action(State(state): State<AppState>, Path(id): Path<String
                         let mut reader = BufReader::new(stdout).lines();
                         while let Ok(Some(line)) = reader.next_line().await {
                             if let Some(dq) = logs_state.lock().await.get_mut(&id_stdout) {
-                                if dq.len() > 500 { dq.pop_front(); } dq.push_back(line);
+                                if dq.len() > 500 { dq.pop_front(); } 
+                                let ts = Local::now().format("%H:%M:%S").to_string();
+                                dq.push_back(format!("[{}] {}", ts, line));
                             }
                         }
                     });
@@ -103,7 +134,9 @@ pub async fn project_action(State(state): State<AppState>, Path(id): Path<String
                         let mut reader = BufReader::new(stderr).lines();
                         while let Ok(Some(line)) = reader.next_line().await {
                             if let Some(dq) = logs_state_err.lock().await.get_mut(&id_stderr) {
-                                if dq.len() > 500 { dq.pop_front(); } dq.push_back(format!("[ERROR] {}", line));
+                                if dq.len() > 500 { dq.pop_front(); } 
+                                let ts = Local::now().format("%H:%M:%S").to_string();
+                                dq.push_back(format!("[{}] [ERROR] {}", ts, line));
                             }
                         }
                     });

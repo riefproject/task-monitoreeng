@@ -26,6 +26,8 @@ pub struct FavoriteProject {
     pub name: String,
     pub command: String,
     pub cwd: String,
+    #[serde(default)]
+    pub port: Option<String>,
 }
 
 #[derive(Serialize, Clone)]

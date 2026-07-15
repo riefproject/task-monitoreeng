@@ -8,6 +8,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Fira+Code&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/feather-icons"></script>
 </head>
 <body>
     <div class="layout">
@@ -77,35 +78,6 @@
                 </div>
             </div>
 
-            <!-- Local Folder Hosting Section -->
-            <div class="card glass mt-4">
-                <div class="card-header">
-                    <h3>Local Web Server</h3>
-                </div>
-                <div class="split-layout">
-                    <form id="host-form" class="host-form">
-                        <div class="input-group">
-                            <label>Absolute Folder Path</label>
-                            <div style="display: flex; gap: 0.5rem;">
-                                <input type="text" id="path" placeholder="e.g. /Users/ikajtk/Downloads" required style="flex: 1;">
-                                <button type="button" class="btn-secondary" onclick="browseFolder('path')">📁</button>
-                            </div>
-                        </div>
-                        <div class="input-group">
-                            <label>Port</label>
-                            <input type="number" id="port" placeholder="8080" required min="1024" max="65535">
-                        </div>
-                        <button type="submit" class="btn-primary">Launch Web Server</button>
-                    </form>
-                    
-                    <div class="hosted-list-container">
-                        <h4 style="margin-bottom: 1rem; color: var(--text-muted);">Currently Hosted</h4>
-                        <div id="services-list" class="hosted-list">
-                            <p class="empty-state">No folders hosted.</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
         </main>
 
         <main class="content" id="tab-favorites" style="display: none;">
@@ -126,11 +98,15 @@
                         <label>Command</label>
                         <input type="text" id="fav-cmd" placeholder="e.g. npm run dev" required>
                     </div>
+                    <div class="input-group" style="flex: 1; margin-bottom: 0;">
+                        <label>PORT (Env)</label>
+                        <input type="number" id="fav-port" placeholder="Auto" min="1024" max="65535">
+                    </div>
                     <div class="input-group" style="flex: 2; margin-bottom: 0;">
                         <label>Directory</label>
                         <div style="display: flex; gap: 0.5rem;">
                             <input type="text" id="fav-dir" placeholder="e.g. /Users/ikajtk/app" required style="flex: 1;">
-                            <button type="button" class="btn-secondary" onclick="browseFolder('fav-dir')" style="padding: 0.75rem;">📁</button>
+                            <button type="button" class="btn-secondary" onclick="browseFolder('fav-dir')" style="padding: 0.5rem 0.75rem; display: flex; align-items: center; justify-content: center;"><i data-feather="folder" style="width: 16px; height: 16px;"></i></button>
                         </div>
                     </div>
                     <button type="submit" class="btn-primary" style="width: auto; padding: 0.75rem 2rem;">Add</button>
@@ -147,6 +123,7 @@
                             <tr>
                                 <th>Project Name</th>
                                 <th>Command</th>
+                                <th>Port</th>
                                 <th>Directory</th>
                                 <th>Status</th>
                                 <th style="text-align: right;">Actions</th>
@@ -173,5 +150,8 @@
     </div>
 
     <script src="app.js"></script>
+    <script>
+        feather.replace();
+    </script>
 </body>
 </html>
