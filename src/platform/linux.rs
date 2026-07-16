@@ -40,4 +40,24 @@ pub fn build_command(command: &str) -> std::process::Command {
 
 pub fn pause_process(pid: u32) { let _ = std::process::Command::new("kill").arg("-STOP").arg(pid.to_string()).output(); }
 pub fn resume_process(pid: u32) { let _ = std::process::Command::new("kill").arg("-CONT").arg(pid.to_string()).output(); }
-pub fn kill_process(pid: u32) { let _ = std::process::Command::new("kill").arg("-15").arg(pid.to_string()).output(); }
+pub fn kill_process(pid: u32) { 
+    if let Ok(out) = std::process::Command::new("kill").arg("-15").arg(pid.to_string()).output() {
+        if !out.status.success() {
+            let err = String::from_utf8_lossy(&out.stderr).to_lowercase();
+            if err.contains("permitted") || err.contains("denied") {
+                let _ = std::process::Command::new("pkexec").arg("kill").arg("-15").arg(pid.to_string()).output();
+            }
+        }
+    }
+}
+
+pub fn force_kill_process(pid: u32) { 
+    if let Ok(out) = std::process::Command::new("kill").arg("-9").arg(pid.to_string()).output() {
+        if !out.status.success() {
+            let err = String::from_utf8_lossy(&out.stderr).to_lowercase();
+            if err.contains("permitted") || err.contains("denied") {
+                let _ = std::process::Command::new("pkexec").arg("kill").arg("-9").arg(pid.to_string()).output();
+            }
+        }
+    }
+}

@@ -26,28 +26,11 @@ window.fetchFavorites = async () => {
         if (favs.length === 0) return listEl.innerHTML = '<tr><td colspan="5" class="empty-state">No favorite projects yet.</td></tr>';
             
         listEl.innerHTML = favs.map(f => {
-            let actionButtons = '';
-            let logBtn = '';
-            
-            if (f.status === 'stopped') {
-                actionButtons = `<button class="btn-primary icon-btn" title="Run" onclick="favAction('${f.config.id}', 'run', document.getElementById('cmd-in-${f.config.id}').value)"><img src="assets/svg/play.svg" style="width:14px;height:14px; filter:invert(1);"></button>`;
-                logBtn = `<button class="btn-secondary icon-btn" onclick="viewLogs('${f.config.id}')" title="View Logs" style="position: relative;"><img src="assets/svg/logs.svg" style="width:14px;height:14px; filter:invert(1);">${f.has_error ? '<span style="position:absolute; top:-2px; right:-2px; width:8px; height:8px; background:var(--danger); border-radius:50%; box-shadow:0 0 4px var(--danger);"></span>' : ''}</button>`;
-            } else if (f.status === 'running_externally') {
-                actionButtons = `<button class="btn-danger icon-btn" onclick="killSystemProcess('${f.ext_pid}')" title="Kill Orphaned Process"><img src="assets/svg/x.svg" style="width:14px;height:14px; filter:invert(1);"></button>`;
-                logBtn = '';
-            } else if (f.status === 'running') {
-                actionButtons = `<button class="btn-warning icon-btn" title="Pause" onclick="favAction('${f.config.id}', 'pause')"><img src="assets/svg/pause.svg" style="width:14px;height:14px; filter:invert(1);"></button>
-                                 <button class="btn-danger icon-btn" title="Stop" onclick="favAction('${f.config.id}', 'stop')"><img src="assets/svg/x.svg" style="width:14px;height:14px; filter:invert(1);"></button>`;
-                logBtn = `<button class="btn-secondary icon-btn" onclick="viewLogs('${f.config.id}')" title="View Logs" style="position: relative;"><img src="assets/svg/logs.svg" style="width:14px;height:14px; filter:invert(1);">${f.has_error ? '<span style="position:absolute; top:-2px; right:-2px; width:8px; height:8px; background:var(--danger); border-radius:50%; box-shadow:0 0 4px var(--danger);"></span>' : ''}</button>`;
-            } else if (f.status === 'paused') {
-                actionButtons = `<button class="btn-primary icon-btn" title="Resume" onclick="favAction('${f.config.id}', 'resume')"><img src="assets/svg/play.svg" style="width:14px;height:14px; filter:invert(1);"></button>
-                                 <button class="btn-danger icon-btn" title="Stop" onclick="favAction('${f.config.id}', 'stop')"><img src="assets/svg/x.svg" style="width:14px;height:14px; filter:invert(1);"></button>`;
-                logBtn = `<button class="btn-secondary icon-btn" onclick="viewLogs('${f.config.id}')" title="View Logs" style="position: relative;"><img src="assets/svg/logs.svg" style="width:14px;height:14px; filter:invert(1);">${f.has_error ? '<span style="position:absolute; top:-2px; right:-2px; width:8px; height:8px; background:var(--danger); border-radius:50%; box-shadow:0 0 4px var(--danger);"></span>' : ''}</button>`;
-            }
+            const st = f.status;
 
-            let statusBadge = f.status === 'running' ? '<span class="status-badge running">Running</span>' : 
-                              f.status === 'paused' ? '<span class="status-badge">Paused</span>' : 
-                              f.status === 'running_externally' ? '<span class="status-badge running" style="background:var(--warning);color:black;">External</span>' :
+            let statusBadge = st === 'running' ? '<span class="status-badge running">Running</span>' : 
+                              st === 'paused' ? '<span class="status-badge">Paused</span>' : 
+                              st === 'running_externally' ? '<span class="status-badge running" style="background:var(--warning);color:black;">External</span>' :
                               '<span class="status-badge stopped">Stopped</span>';
 
             return `<tr>
@@ -57,10 +40,22 @@ window.fetchFavorites = async () => {
                 <td><span class="code-font" style="font-size:0.7rem;">${f.config.cwd}</span></td>
                 <td>${statusBadge}</td>
                 <td>
-                    <div class="actions-group">
-                        ${actionButtons}
-                        ${logBtn}
-                        <button class="btn-secondary icon-btn" onclick="delFav('${f.config.id}')" title="Remove"><img src="assets/svg/trash.svg" style="width:14px;height:14px; filter: invert(34%) sepia(93%) saturate(6295%) hue-rotate(346deg) brightness(101%) contrast(97%);"></button>
+                    <div class="actions-group" style="display: flex; gap: 0.5rem; align-items: center; justify-content: flex-end; overflow: visible;">
+                        ${(st === 'stopped') ? `<button class="btn-primary icon-btn" title="Run" onclick="favAction('${f.config.id}', 'run', document.getElementById('cmd-in-${f.config.id}').value)"><img src="assets/svg/play.svg" style="width:14px;height:14px; filter:invert(1);"></button>` : ''}
+                        ${(st === 'running' || st === 'running_externally' || st === 'paused') ? `<button class="btn-danger icon-btn" title="Stop" onclick="favAction('${f.config.id}', 'stop')"><img src="assets/svg/x.svg" style="width:14px;height:14px; filter:invert(1);"></button>` : ''}
+                        
+                        ${(st !== 'running_externally') ? `<button class="btn-secondary icon-btn" onclick="viewLogs('${f.config.id}')" title="View Logs" style="position: relative;"><img src="assets/svg/logs.svg" style="width:14px;height:14px; filter:invert(1);">${f.has_error ? '<span style="position:absolute; top:-2px; right:-2px; width:8px; height:8px; background:var(--danger); border-radius:50%; box-shadow:0 0 4px var(--danger);"></span>' : ''}</button>` : ''}
+                        
+                        <div class="dropdown" tabindex="0">
+                            <button class="btn-secondary icon-btn"><img src="assets/svg/more-vertical.svg" style="width:14px;height:14px; filter:invert(1);"></button>
+                            <div class="dropdown-content">
+                                ${(st === 'running' || st === 'running_externally') ? `<button onclick="favAction('${f.config.id}', 'pause')"><img src="assets/svg/pause.svg" style="width:14px;height:14px; filter:invert(1);"> Pause</button>` : ''}
+                                ${(st === 'paused') ? `<button onclick="favAction('${f.config.id}', 'resume')"><img src="assets/svg/play.svg" style="width:14px;height:14px; filter:invert(1);"> Resume</button>` : ''}
+                                ${(st === 'running_externally') ? `<button onclick="killSystemProcess('${f.ext_pid}')"><img src="assets/svg/x.svg" style="width:14px;height:14px; filter:invert(1);"> Force Kill Orphan</button>` : ''}
+                                <button onclick="editFavorite('${f.config.id}')"><img src="assets/svg/edit.svg" style="width:14px;height:14px; filter:invert(1);"> Edit</button>
+                                <button class="danger" onclick="delFav('${f.config.id}')"><img src="assets/svg/trash.svg" style="width:14px;height:14px; filter:invert(1);"> Delete</button>
+                            </div>
+                        </div>
                     </div>
                 </td>
             </tr>`;
@@ -75,11 +70,15 @@ document.getElementById('fav-form').addEventListener('submit', async (e) => {
     const cwd = document.getElementById('fav-dir').value;
     const port = document.getElementById('fav-port').value;
     const auto_restart = document.getElementById('fav-autorestart').checked;
+    const editId = e.target.dataset.editId || '';
     await fetch('/api/favorites', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: '', name, command, cwd, port: port || null, auto_restart })
+        body: JSON.stringify({ id: editId, name, command, cwd, port: port || null, auto_restart })
     });
+    e.target.dataset.editId = '';
+    const btn = document.querySelector('#fav-form button[type="submit"]');
+    if (btn) btn.innerHTML = '<img src="assets/svg/add.svg" style="width:14px;height:14px; filter:invert(1);"> Add Project';
     document.getElementById('fav-name').value = '';
     document.getElementById('fav-cmd').value = '';
     document.getElementById('fav-dir').value = '';
@@ -89,11 +88,19 @@ document.getElementById('fav-form').addEventListener('submit', async (e) => {
 });
 
 window.favAction = async (id, action, command_override = null) => {
-    await fetch(`/api/favorites/${id}/action`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action, command_override })
-    });
+    try {
+        const res = await fetch(`/api/favorites/${id}/action`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action, command_override })
+        });
+        if (!res.ok) {
+            const errText = await res.text();
+            alert(`Error: ${errText}`);
+        }
+    } catch(err) {
+        alert("Action failed: " + err);
+    }
     window.fetchFavorites();
     if (action === 'run') setTimeout(window.fetchAllPorts, 800);
 };
@@ -104,6 +111,48 @@ window.delFav = async (id) => {
         window.fetchFavorites();
     }
 };
+
+window.editFavorite = async (id) => {
+    try {
+        const res = await fetch('/api/favorites');
+        const favs = await res.json();
+        const proj = favs.find(f => f.config.id === id);
+        if (!proj) return;
+        
+        document.getElementById('popup-fav-name').value = proj.config.name;
+        document.getElementById('popup-fav-cmd').value = proj.config.command;
+        document.getElementById('popup-fav-dir').value = proj.config.cwd;
+        document.getElementById('popup-fav-port').value = proj.config.port || '';
+        document.getElementById('popup-fav-autorestart').checked = proj.config.auto_restart;
+        
+        const form = document.getElementById('favorite-popup-form');
+        form.dataset.editId = id;
+        
+        document.getElementById('favorite-modal').style.display = 'flex';
+    } catch (err) {}
+};
+
+document.getElementById('favorite-popup-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const name = document.getElementById('popup-fav-name').value;
+    const command = document.getElementById('popup-fav-cmd').value;
+    const cwd = document.getElementById('popup-fav-dir').value;
+    const port = document.getElementById('popup-fav-port').value;
+    const auto_restart = document.getElementById('popup-fav-autorestart').checked;
+    const editId = e.target.dataset.editId;
+    
+    if (!editId) return;
+    
+    await fetch('/api/favorites', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: editId, name, command, cwd, port: port || null, auto_restart })
+    });
+    
+    document.getElementById('favorite-modal').style.display = 'none';
+    window.fetchFavorites();
+    if (window.fetchWorkspaces) window.fetchWorkspaces();
+});
 
 window.browseFolder = async (inputId) => {
     try {

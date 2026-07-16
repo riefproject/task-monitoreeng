@@ -44,7 +44,8 @@ window.renderSystemPorts = () => {
         <td>
             <div class="actions-group">
                 <button class="btn-secondary icon-btn" title="Add to Favorites" onclick="promoteToFavorite('${p.command}', '${(p.exe_path||'').replace(/\\/g, '\\\\')}', '${(p.cwd||'').replace(/\\/g, '\\\\')}')"><img src="assets/svg/star.svg" style="width:14px;height:14px; filter:invert(1);"></button>
-                <button class="btn-danger icon-btn" title="Force Kill Process" onclick="killSystemProcess('${p.pid}')"><img src="assets/svg/x.svg" style="width:14px;height:14px; filter:invert(1);"></button>
+                <button class="btn-danger icon-btn" title="Stop Safely (SIGTERM)" onclick="stopSystemProcess('${p.pid}')"><img src="assets/svg/pause.svg" style="width:14px;height:14px; filter:invert(1);"></button>
+                <button class="btn-danger icon-btn" title="Force Kill Process (SIGKILL)" onclick="killSystemProcess('${p.pid}')"><img src="assets/svg/x.svg" style="width:14px;height:14px; filter:invert(1);"></button>
             </div>
         </td>
     </tr>`).join('');
@@ -61,8 +62,15 @@ window.fetchAllPorts = async () => {
 };
 
 window.killSystemProcess = async (pid) => {
-    if(confirm(`Are you sure you want to FORCE KILL process PID ${pid}?`)) {
+    if (confirm('Force kill (SIGKILL) this process? Unsaved data may be lost.')) {
         await fetch(`/api/system/process/${pid}`, { method: 'DELETE' });
+        window.fetchAllPorts();
+    }
+};
+
+window.stopSystemProcess = async (pid) => {
+    if (confirm('Stop (SIGTERM) this process safely?')) {
+        await fetch(`/api/system/process/${pid}/stop`, { method: 'DELETE' });
         window.fetchAllPorts();
     }
 };

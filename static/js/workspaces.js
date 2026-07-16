@@ -37,7 +37,7 @@ window.fetchWorkspaces = async () => {
                     <div style="display: flex; gap: 0.5rem;">
                         <button class="btn-primary" onclick="runWorkspace('${ws.id}')" style="padding: 0.4rem 1rem; display: flex; align-items: center; gap: 4px;"><img src="assets/svg/play.svg" style="width:14px;height:14px; filter:invert(1);"> Run All</button>
                         <button class="btn-secondary" onclick="stopWorkspace('${ws.id}')" style="padding: 0.4rem 1rem; display: flex; align-items: center; gap: 4px;"><img src="assets/svg/x.svg" style="width:14px;height:14px; filter:invert(1);"> Stop All</button>
-                        <button class="btn-secondary" onclick="editWorkspace('${ws.id}')" style="padding: 0.4rem 0.6rem;" title="Edit Workspace"><img src="assets/svg/settings.svg" alt="Edit" style="width: 16px; height: 16px; filter: invert(1);"></button>
+                        <button class="btn-secondary" onclick="editWorkspace('${ws.id}')" style="padding: 0.4rem 0.6rem;" title="Edit Workspace"><img src="assets/svg/edit.svg" alt="Edit" style="width: 16px; height: 16px; filter: invert(1);"></button>
                         <button class="btn-secondary" onclick="deleteWorkspace('${ws.id}')" style="padding: 0.4rem 0.6rem; color: #ff4444;" title="Delete Workspace"><img src="assets/svg/trash.svg" alt="Delete" style="width: 16px; height: 16px; filter: invert(34%) sepia(93%) saturate(6295%) hue-rotate(346deg) brightness(101%) contrast(97%);"></button>
                     </div>
                 </div>
@@ -70,14 +70,20 @@ window.fetchWorkspaces = async () => {
                                 <tr>
                                     <td>${p.config.name}</td>
                                     <td>${statusHtml}</td>
-                                    <td class="actions-cell" style="text-align: right; display: flex; justify-content: flex-end; gap: 0.5rem;">
+                                    <td class="actions-cell" style="text-align: right; display: flex; justify-content: flex-end; gap: 0.5rem; align-items: center; overflow: visible;">
                                         ${(st === 'stopped') ? `<button class="btn-primary icon-btn" title="Run" onclick="favAction('${p.config.id}', 'run'); setTimeout(window.fetchWorkspaces, 500)"><img src="assets/svg/play.svg" style="width:14px;height:14px; filter:invert(1);"></button>` : ''}
-                                        ${(st === 'running' || st === 'running_externally') ? `<button class="btn-secondary icon-btn" title="Pause" onclick="favAction('${p.config.id}', 'pause'); setTimeout(window.fetchWorkspaces, 500)"><img src="assets/svg/pause.svg" style="width:14px;height:14px; filter:invert(1);"></button>` : ''}
-                                        ${(st === 'paused') ? `<button class="btn-primary icon-btn" title="Resume" onclick="favAction('${p.config.id}', 'resume'); setTimeout(window.fetchWorkspaces, 500)"><img src="assets/svg/play.svg" style="width:14px;height:14px; filter:invert(1);"></button>` : ''}
+                                        ${(st === 'running' || st === 'running_externally' || st === 'paused') ? `<button class="btn-danger icon-btn" title="Stop" onclick="favAction('${p.config.id}', 'stop'); setTimeout(window.fetchWorkspaces, 500)"><img src="assets/svg/x.svg" style="width:14px;height:14px; filter:invert(1);"></button>` : ''}
                                         <button class="btn-secondary icon-btn" title="View Logs" onclick="viewLogs('${p.config.id}')"><img src="assets/svg/logs.svg" style="width:14px;height:14px; filter:invert(1);"></button>
-                                        <button class="btn-secondary icon-btn" title="Edit" onclick="editFavorite('${p.config.id}')"><img src="assets/svg/settings.svg" style="width:14px;height:14px; filter:invert(1);"></button>
-                                        ${(st === 'running' || st === 'paused' || st === 'running_externally') ? `<button class="btn-danger icon-btn" title="Stop" onclick="favAction('${p.config.id}', 'stop'); setTimeout(window.fetchWorkspaces, 500)"><img src="assets/svg/x.svg" style="width:14px;height:14px; filter:invert(1);"></button>` : ''}
-                                        <button class="btn-danger icon-btn" title="Delete" onclick="delFav('${p.config.id}'); setTimeout(window.fetchWorkspaces, 500)"><img src="assets/svg/trash.svg" style="width:14px;height:14px; filter:invert(1);"></button>
+                                        
+                                        <div class="dropdown" tabindex="0">
+                                            <button class="btn-secondary icon-btn"><img src="assets/svg/more-vertical.svg" style="width:14px;height:14px; filter:invert(1);"></button>
+                                            <div class="dropdown-content">
+                                                ${(st === 'running' || st === 'running_externally') ? `<button onclick="favAction('${p.config.id}', 'pause'); setTimeout(window.fetchWorkspaces, 500)"><img src="assets/svg/pause.svg" style="width:14px;height:14px; filter:invert(1);"> Pause</button>` : ''}
+                                                ${(st === 'paused') ? `<button onclick="favAction('${p.config.id}', 'resume'); setTimeout(window.fetchWorkspaces, 500)"><img src="assets/svg/play.svg" style="width:14px;height:14px; filter:invert(1);"> Resume</button>` : ''}
+                                                <button onclick="editFavorite('${p.config.id}')"><img src="assets/svg/edit.svg" style="width:14px;height:14px; filter:invert(1);"> Edit</button>
+                                                <button class="danger" onclick="delFav('${p.config.id}'); setTimeout(window.fetchWorkspaces, 500)"><img src="assets/svg/trash.svg" style="width:14px;height:14px; filter:invert(1);"> Delete</button>
+                                            </div>
+                                        </div>
                                     </td>
                                 </tr>
                                 `;
@@ -147,7 +153,11 @@ window.editWorkspace = async (wsId) => {
                         <button type="button" class="btn-secondary" onclick="browseFolderDynamic(this)" style="display: flex; align-items: center; justify-content: center; padding: 0 1rem; height: 100%;"><img src="assets/svg/folder.svg" style="width:16px;height:16px; filter:invert(1);"></button>
                     </div>
                 </div>
-                <button type="button" class="btn-secondary" onclick="this.parentElement.remove()" style="padding: 0.75rem 0.5rem; height: 42px; display: flex; align-items: center; justify-content: center;" title="Remove Service"><img src="assets/svg/trash.svg" alt="Delete" style="width: 16px; height: 16px; filter: invert(34%) sepia(93%) saturate(6295%) hue-rotate(346deg) brightness(101%) contrast(97%);"></button>
+                <div style="display: flex; gap: 0.25rem; height: 42px; flex-shrink: 0;">
+                    <button type="button" class="btn-secondary" onclick="moveRowUp(this)" style="padding: 0 0.5rem;" title="Move Up">↑</button>
+                    <button type="button" class="btn-secondary" onclick="moveRowDown(this)" style="padding: 0 0.5rem;" title="Move Down">↓</button>
+                    <button type="button" class="btn-secondary" onclick="this.closest('.ws-service-row').remove()" style="padding: 0 0.5rem;" title="Remove Service"><img src="assets/svg/trash.svg" alt="Delete" style="width: 16px; height: 16px; filter: invert(34%) sepia(93%) saturate(6295%) hue-rotate(346deg) brightness(101%) contrast(97%);"></button>
+                </div>
             `;
             container.appendChild(row);
         });
@@ -181,7 +191,11 @@ window.addWorkspaceServiceRow = () => {
                 <button type="button" class="btn-secondary" onclick="browseFolderDynamic(this)" style="display: flex; align-items: center; justify-content: center; padding: 0 1rem; height: 100%;"><img src="assets/svg/folder.svg" style="width:16px;height:16px; filter:invert(1);"></button>
             </div>
         </div>
-        <button type="button" class="btn-secondary" onclick="this.parentElement.remove()" style="padding: 0.75rem 0.5rem; height: 42px; display: flex; align-items: center; justify-content: center;" title="Remove Service"><img src="assets/svg/trash.svg" alt="Delete" style="width: 16px; height: 16px; filter: invert(34%) sepia(93%) saturate(6295%) hue-rotate(346deg) brightness(101%) contrast(97%);"></button>
+        <div style="display: flex; gap: 0.25rem; height: 42px; flex-shrink: 0;">
+            <button type="button" class="btn-secondary" onclick="moveRowUp(this)" style="padding: 0 0.5rem;" title="Move Up">↑</button>
+            <button type="button" class="btn-secondary" onclick="moveRowDown(this)" style="padding: 0 0.5rem;" title="Move Down">↓</button>
+            <button type="button" class="btn-secondary" onclick="this.closest('.ws-service-row').remove()" style="padding: 0 0.5rem;" title="Remove Service"><img src="assets/svg/trash.svg" alt="Delete" style="width: 16px; height: 16px; filter: invert(34%) sepia(93%) saturate(6295%) hue-rotate(346deg) brightness(101%) contrast(97%);"></button>
+        </div>
     `;
     
     container.appendChild(row);
@@ -201,6 +215,20 @@ window.browseFolderDynamic = async (btn) => {
             }
         }
     } catch (err) {}
+};
+
+window.moveRowUp = (btn) => {
+    const row = btn.closest('.ws-service-row');
+    if (row.previousElementSibling) {
+        row.parentNode.insertBefore(row, row.previousElementSibling);
+    }
+};
+
+window.moveRowDown = (btn) => {
+    const row = btn.closest('.ws-service-row');
+    if (row.nextElementSibling) {
+        row.parentNode.insertBefore(row.nextElementSibling, row);
+    }
 };
 
 window.saveWorkspace = async (e) => {
@@ -349,5 +377,8 @@ window.stopWorkspace = async (wsId) => {
 // Auto refresh
 setInterval(() => {
     const el = document.getElementById('tab-workspaces');
-    if (el && el.style.display !== 'none') window.fetchWorkspaces();
+    if (el && el.style.display !== 'none') {
+        if (document.activeElement && document.activeElement.closest('.dropdown')) return;
+        window.fetchWorkspaces();
+    }
 }, 2000);

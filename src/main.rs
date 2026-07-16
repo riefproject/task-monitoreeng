@@ -90,6 +90,7 @@ async fn main() {
         .route("/api/services", get(api::services::get_services))
         .route("/api/all-ports", get(api::system::get_all_ports))
         .route("/api/system/process/{pid}", delete(api::system::kill_system_process))
+        .route("/api/system/process/{pid}/stop", delete(api::system::stop_system_process))
         .route("/api/host", post(api::services::host_folder))
         .route("/api/host/{port}", delete(api::services::stop_folder))
         .route("/api/dialog/folder", get(api::dialog::pick_folder))

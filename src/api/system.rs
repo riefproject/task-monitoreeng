@@ -27,6 +27,11 @@ pub async fn get_all_ports(State(state): State<AppState>) -> Json<Vec<crate::sta
 }
 
 pub async fn kill_system_process(Path(pid): Path<u32>) -> Result<impl IntoResponse, (StatusCode, String)> {
+    crate::platform::force_kill_process(pid);
+    Ok(StatusCode::OK)
+}
+
+pub async fn stop_system_process(Path(pid): Path<u32>) -> Result<impl IntoResponse, (StatusCode, String)> {
     crate::platform::kill_process(pid);
     Ok(StatusCode::OK)
 }

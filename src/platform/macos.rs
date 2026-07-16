@@ -1,4 +1,5 @@
 use tokio::process::Command;
+use std::os::unix::process::CommandExt;
 use crate::state::SystemPortInfo;
 
 pub async fn pick_folder() -> Result<String, String> {
@@ -50,10 +51,39 @@ pub async fn scan_ports(local_sys: &mut sysinfo::System) -> Vec<SystemPortInfo> 
 
 pub fn build_command(command: &str) -> std::process::Command {
     let mut cmd = std::process::Command::new("zsh");
-    cmd.arg("-l").arg("-c").arg(command);
+    
+    // -i: Force interactive mode so zsh automatically reads ~/.zshrc
+    // -l: Login shell to read ~/.zprofile
+    // This allows nvm/fnm to be loaded natively without hardcoding paths
+    cmd.arg("-i").arg("-l").arg("-c").arg(command);
+    cmd.process_group(0); // Make the process the leader of its own process group
     cmd
 }
 
-pub fn pause_process(pid: u32) { let _ = std::process::Command::new("kill").arg("-STOP").arg(pid.to_string()).output(); }
-pub fn resume_process(pid: u32) { let _ = std::process::Command::new("kill").arg("-CONT").arg(pid.to_string()).output(); }
-pub fn kill_process(pid: u32) { let _ = std::process::Command::new("kill").arg("-15").arg(pid.to_string()).output(); }
+pub fn pause_process(pid: u32) { let _ = std::process::Command::new("kill").arg("-STOP").arg(format!("-{}", pid)).output(); }
+pub fn resume_process(pid: u32) { let _ = std::process::Command::new("kill").arg("-CONT").arg(format!("-{}", pid)).output(); }
+pub fn kill_process(pid: u32) { 
+    let pgid = format!("-{}", pid);
+    if let Ok(out) = std::process::Command::new("kill").arg("-15").arg(&pgid).output() {
+        if !out.status.success() {
+            let err = String::from_utf8_lossy(&out.stderr).to_lowercase();
+            if err.contains("permitted") || err.contains("denied") {
+                let script = format!("do shell script \"kill -15 {}\" with administrator privileges", pgid);
+                let _ = std::process::Command::new("osascript").arg("-e").arg(&script).output();
+            }
+        }
+    }
+}
+
+pub fn force_kill_process(pid: u32) { 
+    let pgid = format!("-{}", pid);
+    if let Ok(out) = std::process::Command::new("kill").arg("-9").arg(&pgid).output() {
+        if !out.status.success() {
+            let err = String::from_utf8_lossy(&out.stderr).to_lowercase();
+            if err.contains("permitted") || err.contains("denied") {
+                let script = format!("do shell script \"kill -9 {}\" with administrator privileges", pgid);
+                let _ = std::process::Command::new("osascript").arg("-e").arg(&script).output();
+            }
+        }
+    }
+}

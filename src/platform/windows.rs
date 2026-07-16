@@ -54,4 +54,32 @@ pub fn build_command(command: &str) -> std::process::Command {
 
 pub fn pause_process(_pid: u32) {}
 pub fn resume_process(_pid: u32) {}
-pub fn kill_process(pid: u32) { let _ = std::process::Command::new("taskkill").arg("/PID").arg(pid.to_string()).output(); }
+pub fn kill_process(pid: u32) { 
+    if let Ok(out) = std::process::Command::new("taskkill").arg("/PID").arg(pid.to_string()).output() {
+        if !out.status.success() {
+            let err = String::from_utf8_lossy(&out.stderr).to_lowercase();
+            if err.contains("denied") || err.contains("access") {
+                let args = format!("/PID {}", pid);
+                let _ = std::process::Command::new("powershell")
+                    .arg("-Command")
+                    .arg(format!("Start-Process taskkill -ArgumentList '{}' -Verb RunAs -WindowStyle Hidden", args))
+                    .output();
+            }
+        }
+    }
+}
+
+pub fn force_kill_process(pid: u32) { 
+    if let Ok(out) = std::process::Command::new("taskkill").arg("/F").arg("/PID").arg(pid.to_string()).output() {
+        if !out.status.success() {
+            let err = String::from_utf8_lossy(&out.stderr).to_lowercase();
+            if err.contains("denied") || err.contains("access") {
+                let args = format!("/F /PID {}", pid);
+                let _ = std::process::Command::new("powershell")
+                    .arg("-Command")
+                    .arg(format!("Start-Process taskkill -ArgumentList '{}' -Verb RunAs -WindowStyle Hidden", args))
+                    .output();
+            }
+        }
+    }
+}
